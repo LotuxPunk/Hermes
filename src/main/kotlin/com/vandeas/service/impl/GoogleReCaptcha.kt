@@ -1,6 +1,7 @@
-package com.vandeas.service
+package com.vandeas.service.impl
 
 import com.vandeas.dto.GoogleRecaptchaResponse
+import com.vandeas.service.ReCaptcha
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
@@ -10,7 +11,7 @@ import io.ktor.serialization.jackson.*
 
 class GoogleReCaptcha : ReCaptcha {
 
-    override suspend fun verify(secret: String, userResponse: String): Boolean {
+    override suspend fun verify(secret: String, userResponse: String): GoogleRecaptchaResponse {
         HttpClient(CIO){
             install(ContentNegotiation) {
                 jackson()
@@ -18,8 +19,7 @@ class GoogleReCaptcha : ReCaptcha {
         }.use { client ->
             val response =
                 client.post("https://www.google.com/recaptcha/api/siteverify?secret=$secret&response=$userResponse")
-            val gReCaptchaResponse = response.body<GoogleRecaptchaResponse>()
-            return gReCaptchaResponse.success
+            return response.body<GoogleRecaptchaResponse>()
         }
     }
 }

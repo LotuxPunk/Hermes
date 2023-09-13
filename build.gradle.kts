@@ -1,6 +1,9 @@
+import io.ktor.plugin.features.*
+
 val ktor_version: String by project
 val kotlin_version: String by project
 val logback_version: String by project
+val koin_ktor_version: String by project
 
 plugins {
     kotlin("jvm") version "1.9.10"
@@ -24,11 +27,40 @@ repositories {
 
 dependencies {
     implementation("io.ktor:ktor-server-core-jvm")
-    implementation("io.ktor:ktor-server-resources")
     implementation("io.ktor:ktor-server-cors-jvm")
+    implementation("io.ktor:ktor-server-content-negotiation-jvm")
+    implementation("io.ktor:ktor-serialization-jackson-jvm")
     implementation("io.ktor:ktor-server-call-logging-jvm")
     implementation("io.ktor:ktor-server-cio-jvm")
+    implementation("io.ktor:ktor-server-mustache-jvm")
+
+    implementation("io.ktor:ktor-client-cio-jvm")
+    implementation("io.ktor:ktor-client-core-jvm")
+    implementation("io.ktor:ktor-client-content-negotiation-jvm")
+
+    implementation("io.insert-koin:koin-ktor:$koin_ktor_version")
+    implementation("io.insert-koin:koin-logger-slf4j:$koin_ktor_version")
+
     implementation("ch.qos.logback:logback-classic:$logback_version")
+
+    implementation("com.sendgrid:sendgrid-java:4.9.3")
+
     testImplementation("io.ktor:ktor-server-tests-jvm")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+}
+
+
+ktor {
+    docker {
+        jreVersion.set(JavaVersion.VERSION_17)
+        localImageName.set("hermes")
+        imageTag.set("0.0.1")
+
+        DockerImageRegistry.externalRegistry(
+            username = providers.environmentVariable("DOCKER_REGISTRY_USERNAME"),
+            password = providers.environmentVariable("DOCKER_REGISTRY_PASSWORD"),
+            project = provider { "hermes" },
+            hostname = providers.environmentVariable("DOCKER_REGISTRY_HOSTNAME")
+        )
+    }
 }

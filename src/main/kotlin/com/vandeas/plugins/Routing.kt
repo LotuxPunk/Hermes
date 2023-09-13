@@ -1,26 +1,48 @@
 package com.vandeas.plugins
 
-import io.ktor.resources.*
+import com.vandeas.dto.ContactForm
+import com.vandeas.exception.RecaptchaFailedException
+import com.vandeas.logic.MailLogic
+import com.vandeas.logic.impl.MailLogicImpl
+import io.ktor.http.*
+import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
-import io.ktor.server.resources.*
-import io.ktor.server.resources.Resources
+import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.serialization.Serializable
+import org.koin.ktor.ext.inject
 
 fun Application.configureRouting() {
-    install(Resources)
+    val mailLogic by inject<MailLogic>()
+
+    install(ContentNegotiation) {
+        jackson { }
+    }
     routing {
-        get("/") {
-            call.respondText("Hello World!")
-        }
-        get<Articles> { article ->
-            // Get all articles ...
-            call.respond("List of articles sorted starting from ${article.sort}")
+        route("/v1") {
+            route("/mail") {
+                post("/contact") {
+                    val contactForm = call.receive<ContactForm>()
+
+                    try {
+                        val response = mailLogic.sendContactForm(contactForm)
+                        if (response.isSuccessful) {
+                            call.respond(HttpStatusCode.OK)
+                        } else {
+                            call.respond(HttpStatusCode.InternalServerError)
+                        }
+                    } catch (e: Exception) {
+                        when (e) {
+                            is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
+                            is RecaptchaFailedException -> call.respond(HttpStatusCode.Forbidden, e.message)
+                            else -> call.respond(HttpStatusCode.InternalServerError)
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
-@Serializable
-@Resource("/articles")
-class Articles(val sort: String? = "new")
+

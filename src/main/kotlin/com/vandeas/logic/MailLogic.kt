@@ -1,7 +1,8 @@
 package com.vandeas.logic
 
 import com.vandeas.dto.ContactForm
+import com.vandeas.service.Response
 
-interface MailerLogic {
-    suspend fun sendContactForm(form: ContactForm): Boolean
+interface MailLogic {
+    suspend fun sendContactForm(form: ContactForm): Response
 }

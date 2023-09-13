@@ -1,12 +1,14 @@
-package com.vandeas.service
+package com.vandeas.service.impl
 
+import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.vandeas.dto.ContactFormConfig
+import com.vandeas.service.ConfigLoader
 
-class ConfigLoaderImpl : ConfigLoader {
+class EnvVariableConfigLoaderImpl : ConfigLoader {
 
     private val configs: Map<String, ContactFormConfig> = System.getenv("CONTACT_FORM_CONFIGS").let {
-        (jacksonObjectMapper().readValue(it, List::class.java) as List<ContactFormConfig>).associateBy { config ->
+        (jacksonObjectMapper().readValue(it, object : TypeReference<List<ContactFormConfig>>() {})).associateBy { config ->
             config.id
         }
     }
