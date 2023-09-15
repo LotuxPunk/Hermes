@@ -1,0 +1,9 @@
+services:
+  hermes:
+    image: "lotuxpunk/hermes:latest"
+    ports:
+      - "3000:3000"
+    environment:
+      CONTACT_FORM_CONFIGS: '[]'
+      GOOGLE_RECAPTCHA_SECRET: ''
+      SENDGRID_API_KEY: ''
