@@ -18,15 +18,18 @@ class MailLogicImpl(
 
     override suspend fun sendContactForm(form: ContactForm): Response {
         val config = configLoader.getContactFormConfig(form.id)
+
+        if (!limiter.canSendMail(config)) {
+            return Response(HttpStatusCode.TooManyRequests.value, "Daily limit reached")
+        }
+
         val grResponse = googleReCaptcha.verify(System.getenv("GOOGLE_RECAPTCHA_SECRET"), form.recaptchaToken)
 
         if (!grResponse.success && grResponse.score >= config.threshold) {
             throw RecaptchaFailedException()
         }
 
-        if (!limiter.recordMailSent(config)) {
-            return Response(HttpStatusCode.TooManyRequests.value, "Daily limit reached")
-        }
+        limiter.recordMailSent(config)
 
         return mailer.sendEmail(
             from = config.sender,

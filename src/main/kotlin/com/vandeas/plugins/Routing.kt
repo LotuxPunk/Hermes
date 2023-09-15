@@ -28,9 +28,9 @@ fun Application.configureRouting() {
                     try {
                         val response = mailLogic.sendContactForm(contactForm)
                         if (response.isSuccessful) {
-                            call.respond(HttpStatusCode.OK)
+                            call.respond(HttpStatusCode.NoContent)
                         } else {
-                            call.respond(HttpStatusCode.InternalServerError)
+                            call.respond(HttpStatusCode.fromValue(response.statusCode), response.body ?: "")
                         }
                     } catch (e: Exception) {
                         when (e) {
