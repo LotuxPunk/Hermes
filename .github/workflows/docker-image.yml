@@ -2,14 +2,20 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - '*'
 
 jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
+      -
+        name: Checkout code
+        uses: actions/checkout@v2
+      -
+        name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -26,7 +32,7 @@ jobs:
         name: Build and push
         uses: docker/build-push-action@v5
         with:
-          #context: .
-          #file: ./Dockerfile
           push: true
-          tags: lotuxpunk/hermes:latest
+          tags: |
+            lotuxpunk/hermes:${{ steps.get_version.outputs.VERSION }}
+            lotuxpunk/hermes:latest
