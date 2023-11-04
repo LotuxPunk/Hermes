@@ -8,6 +8,7 @@ EXPOSE 8080:8080
 RUN mkdir /app
 COPY --from=build /home/gradle/src/build/libs/*.jar /app/hermes.jar
 ENV CONTACT_FORM_CONFIGS=[]
+ENV MAIL_CONFIGS=[]
 ENV GOOGLE_RECAPTCHA_SECRET=
 ENV SENDGRID_API_KEY=
 ENTRYPOINT ["java","-jar","/app/hermes.jar"]

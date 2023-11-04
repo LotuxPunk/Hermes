@@ -45,6 +45,8 @@ dependencies {
 
     implementation("com.sendgrid:sendgrid-java:4.9.3")
 
+    implementation("net.pwall.mustache:kotlin-mustache:0.11")
+
     testImplementation("io.ktor:ktor-server-tests-jvm")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 }

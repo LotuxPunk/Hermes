@@ -3,10 +3,12 @@ package com.vandeas.logic.impl
 import com.github.mustachejava.DefaultMustacheFactory
 import com.github.mustachejava.Mustache
 import com.vandeas.dto.ContactForm
+import com.vandeas.dto.Mail
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
 import com.vandeas.service.*
 import io.ktor.http.*
+import net.pwall.mustache.Template
 import java.io.StringWriter
 
 class MailLogicImpl(
@@ -36,6 +38,19 @@ class MailLogicImpl(
             to = config.destination,
             subject = getMustacheTemplate("${config.lang}/subject/contact_form.hbs", mapOf("form" to form)),
             content = getMustacheTemplate("${config.lang}/content/contact_form.hbs", mapOf("form" to form))
+        )
+    }
+
+    override suspend fun sendMail(mail: Mail): Response {
+        val config = configLoader.getMailConfig(mail.id)
+        val contentTemplate = Template.parse(config.contentTemplate)
+        val subjectTemplate = Template.parse(config.subjectTemplate)
+
+        return mailer.sendEmail(
+            from = config.sender,
+            to = mail.email,
+            subject = subjectTemplate.processToString(mail.attributes),
+            content = contentTemplate.processToString(mail.attributes)
         )
     }
 

@@ -1,6 +1,7 @@
 package com.vandeas.plugins
 
 import com.vandeas.dto.ContactForm
+import com.vandeas.dto.Mail
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
 import com.vandeas.logic.impl.MailLogicImpl
@@ -36,6 +37,23 @@ fun Application.configureRouting() {
                         when (e) {
                             is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
                             is RecaptchaFailedException -> call.respond(HttpStatusCode.Forbidden, e.message)
+                            else -> call.respond(HttpStatusCode.InternalServerError)
+                        }
+                    }
+                }
+                post {
+                    val mail = call.receive<Mail>()
+
+                    try {
+                        val response = mailLogic.sendMail(mail)
+                        if (response.isSuccessful) {
+                            call.respond(HttpStatusCode.NoContent)
+                        } else {
+                            call.respond(HttpStatusCode.fromValue(response.statusCode), response.body ?: "")
+                        }
+                    } catch (e: Exception) {
+                        when (e) {
+                            is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
                             else -> call.respond(HttpStatusCode.InternalServerError)
                         }
                     }
