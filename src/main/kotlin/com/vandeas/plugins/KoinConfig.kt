@@ -6,7 +6,7 @@ import com.vandeas.service.ConfigLoader
 import com.vandeas.service.DailyLimiter
 import com.vandeas.service.Mailer
 import com.vandeas.service.ReCaptcha
-import com.vandeas.service.impl.EnvVariableConfigLoaderImpl
+import com.vandeas.service.impl.FilesConfigLoaderImpl
 import com.vandeas.service.impl.GoogleReCaptcha
 import com.vandeas.service.impl.InMemoryDailyLimiter
 import com.vandeas.service.impl.SendGridMailer
@@ -17,7 +17,7 @@ import org.koin.logger.slf4jLogger
 
 val appModule = module {
     single<Mailer> { SendGridMailer() }
-    single<ConfigLoader> { EnvVariableConfigLoaderImpl() }
+    single<ConfigLoader> { FilesConfigLoaderImpl() }
     single<ReCaptcha> { GoogleReCaptcha() }
     single<DailyLimiter> { InMemoryDailyLimiter() }
     single<MailLogic> { MailLogicImpl(get(), get(), get(), get()) }

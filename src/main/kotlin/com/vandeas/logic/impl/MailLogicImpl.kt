@@ -33,17 +33,20 @@ class MailLogicImpl(
 
         limiter.recordMailSent(config)
 
+        val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
+        val subjectTemplate = Template.parse(config.subjectTemplate)
+
         return mailer.sendEmail(
             from = config.sender,
             to = config.destination,
-            subject = getMustacheTemplate("${config.lang}/subject/contact_form.hbs", mapOf("form" to form)),
-            content = getMustacheTemplate("${config.lang}/content/contact_form.hbs", mapOf("form" to form))
+            subject = subjectTemplate.processToString(mapOf("form" to form)),
+            content = contentTemplate.processToString(mapOf("form" to form))
         )
     }
 
     override suspend fun sendMail(mail: Mail): Response {
         val config = configLoader.getMailConfig(mail.id)
-        val contentTemplate = Template.parse(config.contentTemplate)
+        val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
         return mailer.sendEmail(
@@ -54,18 +57,4 @@ class MailLogicImpl(
         )
     }
 
-    private fun getMustacheFactory(): DefaultMustacheFactory {
-        return DefaultMustacheFactory("templates")
-    }
-
-    private fun getMustacheTemplate(template: String): Mustache {
-        return getMustacheFactory().compile(template)
-    }
-
-    private fun getMustacheTemplate(template: String, model: Map<String, Any>): String {
-        val mustache = getMustacheTemplate(template)
-        val writer = StringWriter()
-        mustache.execute(writer, model).flush()
-        return writer.toString()
-    }
 }

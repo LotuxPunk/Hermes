@@ -4,11 +4,12 @@ val ktor_version: String by project
 val kotlin_version: String by project
 val logback_version: String by project
 val koin_ktor_version: String by project
+val kotlinx_serialization_version: String by project
 
 plugins {
-    kotlin("jvm") version "1.9.10"
+    kotlin("jvm") version "1.9.20"
     id("io.ktor.plugin") version "2.3.4"
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.10"
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.20"
 }
 
 group = "com.vandeas"
@@ -45,7 +46,11 @@ dependencies {
 
     implementation("com.sendgrid:sendgrid-java:4.9.3")
 
+    implementation("io.github.irgaly.kfswatch:kfswatch:1.0.0")
+
     implementation("net.pwall.mustache:kotlin-mustache:0.11")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinx_serialization_version")
 
     testImplementation("io.ktor:ktor-server-tests-jvm")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
