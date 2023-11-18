@@ -4,7 +4,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      CONTACT_FORM_CONFIGS: '[]'
-      MAIL_CONFIGS: '[]'
+      CONTACT_FORM_CONFIGS_FOLDER: '/var/hermes/contact-form-configs'
+      MAIL_CONFIGS_FOLDER: '/var/hermes/mail-configs'
+      TEMPLATES_FOLDER: '/var/hermes/templates'
       GOOGLE_RECAPTCHA_SECRET: ''
       SENDGRID_API_KEY: ''
+    volumes:
+      - ./contact:/var/hermes/contact-form-configs
+      - ./mail:/var/hermes/mail-configs
+      - ./templates:/var/hermes/templates
