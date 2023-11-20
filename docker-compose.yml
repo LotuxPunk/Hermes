@@ -2,7 +2,7 @@ services:
   hermes:
     image: "lotuxpunk/hermes:latest"
     ports:
-      - "3000:3000"
+      - "3000:8080"
     environment:
       CONTACT_FORM_CONFIGS_FOLDER: '/var/hermes/contact-form-configs'
       MAIL_CONFIGS_FOLDER: '/var/hermes/mail-configs'
