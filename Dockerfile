@@ -13,3 +13,4 @@ ENV TEMPLATES_FOLDER=
 ENV GOOGLE_RECAPTCHA_SECRET=
 ENV SENDGRID_API_KEY=
 ENTRYPOINT ["java","-jar","/app/hermes.jar"]
+LABEL org.opencontainers.image.source=https://github.com/LotuxPunk/Hermes
