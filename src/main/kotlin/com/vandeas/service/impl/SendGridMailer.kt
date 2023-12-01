@@ -40,4 +40,4 @@ class SendGridMailer : Mailer {
     }
 }
 
-fun String.toSendGridEmail() = Email(this)
+private fun String.toSendGridEmail() = Email(this)

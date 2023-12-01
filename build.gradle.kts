@@ -45,6 +45,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:$logback_version")
 
     implementation("com.sendgrid:sendgrid-java:4.9.3")
+    implementation("com.resend:resend-java:2.2.1")
 
     implementation("io.github.irgaly.kfswatch:kfswatch:1.0.0")
 
