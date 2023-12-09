@@ -1,22 +1,25 @@
 package com.vandeas.logic.impl
 
-import com.github.mustachejava.DefaultMustacheFactory
-import com.github.mustachejava.Mustache
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.Mail
+import com.vandeas.dto.toMailer
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
 import com.vandeas.service.*
 import io.ktor.http.*
 import net.pwall.mustache.Template
-import java.io.StringWriter
 
 class MailLogicImpl(
-    private val mailer: Mailer,
     private val configLoader: ConfigLoader,
     private val googleReCaptcha: ReCaptcha,
     private val limiter: DailyLimiter
 ) : MailLogic {
+
+    private val mailers: Map<String, Mailer> = configLoader.getMailConfigs().associate {
+        it.id to it.toMailer()
+    } + configLoader.getContactFormConfigs().associate {
+        it.id to it.toMailer()
+    }
 
     override suspend fun sendContactForm(form: ContactForm): Response {
         val config = configLoader.getContactFormConfig(form.id)
@@ -36,12 +39,12 @@ class MailLogicImpl(
         val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-        return mailer.sendEmail(
+        return mailers[config.id]?.sendEmail(
             from = config.sender,
             to = config.destination,
             subject = subjectTemplate.processToString(mapOf("form" to form)),
             content = contentTemplate.processToString(mapOf("form" to form))
-        )
+        ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found for ${config.id}")
     }
 
     override suspend fun sendMail(mail: Mail): Response {
@@ -49,12 +52,12 @@ class MailLogicImpl(
         val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-        return mailer.sendEmail(
+        return mailers[config.id]?.sendEmail(
             from = config.sender,
             to = mail.email,
             subject = subjectTemplate.processToString(mail.attributes),
             content = contentTemplate.processToString(mail.attributes)
-        )
+        ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found for ${config.id}")
     }
 
 }

@@ -48,7 +48,9 @@ To run this project, you will need to add the following environment variables
     "sender": "doe@example.com",
     "threshold": 0.5, // Recapthca score thresold
     "lang": "fr", // ISO 639-1
-    "subjectTemplate": "New mail from {{form.firstName}}"
+    "subjectTemplate": "New mail from {{form.firstName}}",
+    "provider": "RESEND",
+    "apiKey": ""
 }
 ```
 
@@ -62,7 +64,9 @@ Filename does not have to respect any convention.
 {
     "id": "UUID",
     "sender": "no-reply@example.com",
-    "subjectTemplate": "New mail from {{form.firstName}}"
+    "subjectTemplate": "New mail from {{form.firstName}}",
+    "provider": "RESEND",
+    "apiKey": ""
 }
 ```
 

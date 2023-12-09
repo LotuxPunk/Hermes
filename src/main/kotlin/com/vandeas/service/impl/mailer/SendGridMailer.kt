@@ -1,18 +1,19 @@
-package com.vandeas.service.impl
+package com.vandeas.service.impl.mailer
 
 import com.sendgrid.Method
 import com.sendgrid.Request
-import com.vandeas.service.Mailer
 import com.sendgrid.SendGrid
 import com.sendgrid.helpers.mail.Mail
 import com.sendgrid.helpers.mail.objects.Content
 import com.sendgrid.helpers.mail.objects.Email
+import com.vandeas.service.Mailer
 import com.vandeas.service.Response
 
+class SendGridMailer(
+    override val apiKey: String
+) : Mailer {
 
-class SendGridMailer : Mailer {
-
-    private val sg = SendGrid(System.getenv("SENDGRID_API_KEY"))
+    private val sg = SendGrid(apiKey)
 
     override fun sendEmail(to: String, from: String, subject: String, content: String): Response {
         val mail = Mail(

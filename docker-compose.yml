@@ -8,7 +8,6 @@ services:
       MAIL_CONFIGS_FOLDER: '/var/hermes/mail-configs'
       TEMPLATES_FOLDER: '/var/hermes/templates'
       GOOGLE_RECAPTCHA_SECRET: ''
-      SENDGRID_API_KEY: ''
     volumes:
       - ./contact:/var/hermes/contact-form-configs
       - ./mail:/var/hermes/mail-configs

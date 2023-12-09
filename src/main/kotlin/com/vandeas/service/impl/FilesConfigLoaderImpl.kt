@@ -66,8 +66,16 @@ class FilesConfigLoaderImpl: ConfigLoader {
         return contactFormConfigs[id] ?: throw IllegalArgumentException("No contact form config found for id $id")
     }
 
+    override fun getContactFormConfigs(): List<ContactFormConfig> {
+        return contactFormConfigs.values.toList()
+    }
+
     override fun getMailConfig(id: String): MailConfig {
         return mailConfigs[id] ?: throw IllegalArgumentException("No mail config found for id $id")
+    }
+
+    override fun getMailConfigs(): List<MailConfig> {
+        return mailConfigs.values.toList()
     }
 
     override fun getTemplate(id: String): String {

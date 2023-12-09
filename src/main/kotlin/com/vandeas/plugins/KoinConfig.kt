@@ -9,18 +9,17 @@ import com.vandeas.service.ReCaptcha
 import com.vandeas.service.impl.FilesConfigLoaderImpl
 import com.vandeas.service.impl.GoogleReCaptcha
 import com.vandeas.service.impl.InMemoryDailyLimiter
-import com.vandeas.service.impl.SendGridMailer
+import com.vandeas.service.impl.mailer.SendGridMailer
 import io.ktor.server.application.*
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
 
 val appModule = module {
-    single<Mailer> { SendGridMailer() }
     single<ConfigLoader> { FilesConfigLoaderImpl() }
     single<ReCaptcha> { GoogleReCaptcha() }
     single<DailyLimiter> { InMemoryDailyLimiter() }
-    single<MailLogic> { MailLogicImpl(get(), get(), get(), get()) }
+    single<MailLogic> { MailLogicImpl(get(), get(), get()) }
 }
 
 fun Application.configureKoin() {

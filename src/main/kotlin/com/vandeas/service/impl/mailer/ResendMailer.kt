@@ -1,4 +1,4 @@
-package com.vandeas.service.impl
+package com.vandeas.service.impl.mailer
 
 import com.resend.Resend
 import com.resend.core.exception.ResendException
@@ -7,9 +7,10 @@ import com.vandeas.service.Mailer
 import com.vandeas.service.Response
 import io.ktor.http.*
 
-object ResendMailer: Mailer {
-
-    private val resend = Resend(System.getenv("RESEND_API_KEY"))
+class ResendMailer(
+    override val apiKey: String
+): Mailer {
+    private val resend = Resend(apiKey)
     override fun sendEmail(to: String, from: String, subject: String, content: String): Response {
         val sendMailRequest = SendEmailRequest.builder()
             .from(from)
