@@ -1,6 +1,6 @@
 package com.vandeas.dto
 
-data class Mail(
+data class MailInput(
     val id: String,
     val email: String,
     val attributes: Map<String, String>

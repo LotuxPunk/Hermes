@@ -2,6 +2,7 @@ import io.ktor.plugin.features.*
 
 val ktor_version: String by project
 val kotlin_version: String by project
+val kotlin_coroutines: String by project
 val logback_version: String by project
 val koin_ktor_version: String by project
 val kotlinx_serialization_version: String by project
@@ -38,6 +39,8 @@ dependencies {
     implementation("io.ktor:ktor-client-cio-jvm")
     implementation("io.ktor:ktor-client-core-jvm")
     implementation("io.ktor:ktor-client-content-negotiation-jvm")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines")
 
     implementation("io.insert-koin:koin-ktor:$koin_ktor_version")
     implementation("io.insert-koin:koin-logger-slf4j:$koin_ktor_version")

@@ -1,12 +1,17 @@
 package com.vandeas.logic.impl
 
 import com.vandeas.dto.ContactForm
-import com.vandeas.dto.Mail
+import com.vandeas.dto.MailInput
 import com.vandeas.dto.toMailer
+import com.vandeas.entities.Mail
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
 import com.vandeas.service.*
 import io.ktor.http.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
 import net.pwall.mustache.Template
 
 class MailLogicImpl(
@@ -16,9 +21,9 @@ class MailLogicImpl(
 ) : MailLogic {
 
     private val mailers: Map<String, Mailer> = configLoader.getMailConfigs().associate {
-        it.id to it.toMailer()
+        it.apiKey to it.toMailer()
     } + configLoader.getContactFormConfigs().associate {
-        it.id to it.toMailer()
+        it.apiKey to it.toMailer()
     }
 
     override suspend fun sendContactForm(form: ContactForm): Response {
@@ -47,17 +52,41 @@ class MailLogicImpl(
         ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found for ${config.id}")
     }
 
-    override suspend fun sendMail(mail: Mail): Response {
-        val config = configLoader.getMailConfig(mail.id)
+    override suspend fun sendMail(mailInput: MailInput): Response {
+        val config = configLoader.getMailConfig(mailInput.id)
         val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
         return mailers[config.id]?.sendEmail(
             from = config.sender,
-            to = mail.email,
-            subject = subjectTemplate.processToString(mail.attributes),
-            content = contentTemplate.processToString(mail.attributes)
+            to = mailInput.email,
+            subject = subjectTemplate.processToString(mailInput.attributes),
+            content = contentTemplate.processToString(mailInput.attributes)
         ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found for ${config.id}")
     }
 
+    override suspend fun sendMails(batch: List<MailInput>): List<Response> = withContext(Dispatchers.IO) {
+        val mailsByConfigId = batch.groupBy { mailInput ->
+            configLoader.getMailConfig(mailInput.id).apiKey
+        }
+
+        mailsByConfigId.entries.map { (apiKey, mails) ->
+            async {
+                mailers[apiKey]?.sendEmails(
+                    mails = mails.map { mailInput ->
+                        val config = configLoader.getMailConfig(mailInput.id)
+                        val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
+                        val subjectTemplate = Template.parse(config.subjectTemplate)
+
+                        Mail(
+                            from = config.sender,
+                            to = mailInput.email,
+                            subject = subjectTemplate.processToString(mailInput.attributes),
+                            content = contentTemplate.processToString(mailInput.attributes)
+                        )
+                    }
+                ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found")
+            }
+        }.awaitAll()
+    }
 }

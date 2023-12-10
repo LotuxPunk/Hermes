@@ -1,10 +1,9 @@
 package com.vandeas.plugins
 
 import com.vandeas.dto.ContactForm
-import com.vandeas.dto.Mail
+import com.vandeas.dto.MailInput
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
-import com.vandeas.logic.impl.MailLogicImpl
 import io.ktor.http.*
 import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
@@ -41,11 +40,25 @@ fun Application.configureRouting() {
                         }
                     }
                 }
-                post {
-                    val mail = call.receive<Mail>()
+                post("/batch") {
+                    val batch = call.receive<List<MailInput>>()
 
                     try {
-                        val response = mailLogic.sendMail(mail)
+                        val responses = mailLogic.sendMails(batch)
+                        call.respond(HttpStatusCode.OK, responses)
+                    } catch (e: Exception) {
+                        when (e) {
+                            is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
+                            else -> call.respond(HttpStatusCode.InternalServerError)
+                        }
+                    }
+
+                }
+                post {
+                    val mailInput = call.receive<MailInput>()
+
+                    try {
+                        val response = mailLogic.sendMail(mailInput)
                         if (response.isSuccessful) {
                             call.respond(HttpStatusCode.NoContent)
                         } else {

@@ -1,9 +1,6 @@
 package com.vandeas.service
 
-import com.vandeas.dto.MailConfig
-import com.vandeas.dto.enums.Providers
-import com.vandeas.service.impl.mailer.ResendMailer
-import com.vandeas.service.impl.mailer.SendGridMailer
+import com.vandeas.entities.Mail
 
 interface Mailer {
     val apiKey: String
@@ -14,6 +11,10 @@ interface Mailer {
         subject: String,
         content: String,
     ) : Response
+
+    fun sendEmails(
+        mails: List<Mail>,
+    ): Response
 }
 
 data class Response(
