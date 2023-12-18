@@ -12,9 +12,9 @@ interface Mailer {
         content: String,
     ) : Response
 
-    fun sendEmails(
+    suspend fun sendEmails(
         mails: List<Mail>,
-    ): Response
+    ): BatchResponse
 }
 
 data class Response(
@@ -26,4 +26,12 @@ data class Response(
         get() = statusCode in 200..299
 }
 
+data class BatchResponse(
+    val statusCode: Int,
+    val body: List<String>? = null,
+    val headers: Map<String, String> = emptyMap(),
+) {
+    val isSuccessful: Boolean
+        get() = statusCode in 200..299
+}
 

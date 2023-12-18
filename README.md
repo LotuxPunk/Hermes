@@ -7,6 +7,7 @@
 
 - [Environment Variables](#environment-variables)
 - [Documentation](#documentation)
+  - [Supported Mail Providers](#supported-mail-providers)
   - [Contact Form](#contact-form)
     - [Example of `CONTACT_FORM_CONFIGS_FOLDER` Configuration Files](#example-of-contact_form_configs_folder-configuration-files)
   - [Mail Config](#mail-config)
@@ -35,6 +36,11 @@ To run this project, you will need to add the following environment variables
 - `SENDGRID_API_KEY`
 
 ## Documentation
+
+### Supported Mail Providers
+
+- ~~[Sendgrid](https://sendgrid.com/)~~ Removed due to lack of support for batch emails requests
+- [Resend](https://resend.io/)
 
 ### Contact Form
 
@@ -82,13 +88,13 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 
 ##### Body
 
-| Attribute | Type     | Description                |
-| :-------- | :------- | :------------------------- |
-| `id` | `string` | **Required**. Your contact form config id |
-| `fullName`| `string`| **Required** Full name of the person that sent the form
-| `email`|`string`| **Required** Email of the person that sent the form |
-| `content`|`string`|**Required** Content of the message |
-| `recaptchaToken`|`string`| **Required** Result token/secret of recaptcha |
+| Attribute        | Type     | Description                                             |
+|:-----------------|:---------|:--------------------------------------------------------|
+| `id`             | `string` | **Required**. Your contact form config id               |
+| `fullName`       | `string` | **Required** Full name of the person that sent the form |
+| `email`          | `string` | **Required** Email of the person that sent the form     |
+| `content`        | `string` | **Required** Content of the message                     |
+| `recaptchaToken` | `string` | **Required** Result token/secret of recaptcha           |
 
 #### Send mail using mail configuration
 
@@ -96,11 +102,34 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 
 ##### Body
 
-| Attribute | Type     | Description                |
-| :-------- | :------- | :------------------------- |
-| `id` | `string` | **Required**. Your mail config id |
-| `email`| `string`| **Required** Email of the person to sent the mail to |
-| `attributes`|`Map<string, string> / JSON Object`| **Required** Attributes to hydrate the mail template |
+| Attribute    | Type                                | Description                                          |
+|:-------------|:------------------------------------|:-----------------------------------------------------|
+| `id`         | `string`                            | **Required**. Your mail config id                    |
+| `email`      | `string`                            | **Required** Email of the person to sent the mail to |
+| `attributes` | `Map<string, string> / JSON Object` | **Required** Attributes to hydrate the mail template |
+
+#### Send batch of mails using mail configurations
+
+**POST** `/v1/mail/batch`
+
+##### Body
+
+| Attribute | Type          | Description                          |
+|:----------|:--------------|:-------------------------------------|
+| `mails`   | `Array<Mail>` | **Required**. Array of mails to send |
+
+```json
+[
+    {
+        "id": "UUID", // Mail config id
+        "email": "johndoe@example.com",
+        "attributes": {
+            "firstName": "John",
+            "lastName": "Doe"
+        }
+    }
+]
+```
 
 
 ## Roadmap

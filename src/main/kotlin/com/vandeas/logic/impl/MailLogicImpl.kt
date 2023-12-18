@@ -65,7 +65,7 @@ class MailLogicImpl(
         ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found for ${config.id}")
     }
 
-    override suspend fun sendMails(batch: List<MailInput>): List<Response> = withContext(Dispatchers.IO) {
+    override suspend fun sendMails(batch: List<MailInput>): List<BatchResponse> = withContext(Dispatchers.IO) {
         val mailsByConfigId = batch.groupBy { mailInput ->
             configLoader.getMailConfig(mailInput.id).apiKey
         }
@@ -85,7 +85,7 @@ class MailLogicImpl(
                             content = contentTemplate.processToString(mailInput.attributes)
                         )
                     }
-                ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found")
+                ) ?: BatchResponse(HttpStatusCode.NotFound.value, listOf("No mailer found"))
             }
         }.awaitAll()
     }
