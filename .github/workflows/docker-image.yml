@@ -15,7 +15,12 @@ jobs:
         uses: actions/checkout@v2
       - name: Get the version
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+          else
+            echo ::set-output name=VERSION::latest
+          fi
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
