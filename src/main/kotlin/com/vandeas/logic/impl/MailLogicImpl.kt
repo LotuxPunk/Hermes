@@ -44,7 +44,7 @@ class MailLogicImpl(
         val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-        return mailers[config.id]?.sendEmail(
+        return mailers[config.apiKey]?.sendEmail(
             from = config.sender,
             to = config.destination,
             subject = subjectTemplate.processToString(mapOf("form" to form)),
@@ -57,7 +57,7 @@ class MailLogicImpl(
         val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-        return mailers[config.id]?.sendEmail(
+        return mailers[config.apiKey]?.sendEmail(
             from = config.sender,
             to = mailInput.email,
             subject = subjectTemplate.processToString(mailInput.attributes),
