@@ -2,7 +2,7 @@ package com.vandeas.service.impl.mailer
 
 import com.resend.Resend
 import com.resend.core.exception.ResendException
-import com.resend.services.emails.model.SendEmailRequest
+import com.resend.services.emails.model.CreateEmailOptions
 import com.vandeas.entities.Mail
 import com.vandeas.service.BatchResponse
 import com.vandeas.service.Mailer
@@ -14,7 +14,7 @@ class ResendMailer(
 ): Mailer {
     private val resend = Resend(apiKey)
     override fun sendEmail(to: String, from: String, subject: String, content: String): Response {
-        val sendMailRequest = SendEmailRequest.builder()
+        val sendMailRequest = CreateEmailOptions.builder()
             .from(from)
             .to(to)
             .subject(subject)
@@ -44,7 +44,7 @@ class ResendMailer(
 
     override suspend fun sendEmails(mails: List<Mail>): BatchResponse {
         val requests = mails.map {
-            SendEmailRequest.builder()
+            CreateEmailOptions.builder()
                 .from(it.from)
                 .to(it.to)
                 .subject(it.subject)

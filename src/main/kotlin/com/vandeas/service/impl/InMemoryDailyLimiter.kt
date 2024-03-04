@@ -1,6 +1,6 @@
 package com.vandeas.service.impl
 
-import com.vandeas.dto.ContactFormConfig
+import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.service.DailyLimiter
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap

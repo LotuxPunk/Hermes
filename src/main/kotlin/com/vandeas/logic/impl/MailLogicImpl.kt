@@ -2,7 +2,9 @@ package com.vandeas.logic.impl
 
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.MailInput
-import com.vandeas.dto.toMailer
+import com.vandeas.dto.configs.ContactFormConfig
+import com.vandeas.dto.configs.MailConfig
+import com.vandeas.dto.configs.toMailer
 import com.vandeas.entities.Mail
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
@@ -15,19 +17,16 @@ import kotlinx.coroutines.withContext
 import net.pwall.mustache.Template
 
 class MailLogicImpl(
-    private val configLoader: ConfigLoader,
+    private val mailConfigHandler: ConfigDirectory<MailConfig>,
+    private val contactFormConfigHandler: ConfigDirectory<ContactFormConfig>,
     private val googleReCaptcha: ReCaptcha,
     private val limiter: DailyLimiter
 ) : MailLogic {
 
-    private val mailers: Map<String, Mailer> = configLoader.getMailConfigs().associate {
-        it.apiKey to it.toMailer()
-    } + configLoader.getContactFormConfigs().associate {
-        it.apiKey to it.toMailer()
-    }
+    private val mailers: MutableMap<String, Mailer> = mutableMapOf()
 
     override suspend fun sendContactForm(form: ContactForm): Response {
-        val config = configLoader.getContactFormConfig(form.id)
+        val config = contactFormConfigHandler.get(form.id)
 
         if (!limiter.canSendMail(config)) {
             return Response(HttpStatusCode.TooManyRequests.value, "Daily limit reached")
@@ -41,41 +40,45 @@ class MailLogicImpl(
 
         limiter.recordMailSent(config)
 
-        val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
+        val contentTemplate = Template.parse(contactFormConfigHandler.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-        return mailers[config.apiKey]?.sendEmail(
+        val mailer = mailers[config.apiKey] ?: config.toMailer().also { mailers[config.apiKey] = it }
+
+        return mailer.sendEmail(
             from = config.sender,
             to = config.destination,
             subject = subjectTemplate.processToString(mapOf("form" to form)),
             content = contentTemplate.processToString(mapOf("form" to form))
-        ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found for ${config.id}")
+        )
     }
 
     override suspend fun sendMail(mailInput: MailInput): Response {
-        val config = configLoader.getMailConfig(mailInput.id)
-        val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
+        val config = mailConfigHandler.get(mailInput.id)
+        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-        return mailers[config.apiKey]?.sendEmail(
+        val mailer = mailers[config.apiKey] ?: config.toMailer().also { mailers[config.apiKey] = it }
+
+        return mailer.sendEmail(
             from = config.sender,
             to = mailInput.email,
             subject = subjectTemplate.processToString(mailInput.attributes),
             content = contentTemplate.processToString(mailInput.attributes)
-        ) ?: Response(HttpStatusCode.NotFound.value, "No mailer found for ${config.id}")
+        )
     }
 
     override suspend fun sendMails(batch: List<MailInput>): List<BatchResponse> = withContext(Dispatchers.IO) {
         val mailsByConfigId = batch.groupBy { mailInput ->
-            configLoader.getMailConfig(mailInput.id).apiKey
+            mailConfigHandler.get(mailInput.id).apiKey
         }
 
         mailsByConfigId.entries.map { (apiKey, mails) ->
             async {
                 mailers[apiKey]?.sendEmails(
                     mails = mails.map { mailInput ->
-                        val config = configLoader.getMailConfig(mailInput.id)
-                        val contentTemplate = Template.parse(configLoader.getTemplate(config.id))
+                        val config = mailConfigHandler.get(mailInput.id)
+                        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
                         val subjectTemplate = Template.parse(config.subjectTemplate)
 
                         Mail(

@@ -1,7 +1,7 @@
 package com.vandeas.service
 
-import com.vandeas.dto.ContactFormConfig
-import com.vandeas.dto.MailConfig
+import com.vandeas.dto.configs.ContactFormConfig
+import com.vandeas.dto.configs.MailConfig
 
 interface ConfigLoader {
     fun getContactFormConfig(id: String): ContactFormConfig

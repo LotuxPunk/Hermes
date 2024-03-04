@@ -1,4 +1,4 @@
-package com.vandeas.dto
+package com.vandeas.dto.configs
 
 import com.vandeas.dto.enums.Providers
 import com.vandeas.dto.enums.toMailer
@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ContactFormConfig(
-    val id: String,
+    override val id: String,
     val dailyLimit: Int,
     val destination: String,
     val sender: String,
@@ -15,8 +15,8 @@ data class ContactFormConfig(
     val lang: String,
     val subjectTemplate: String,
     val provider: Providers,
-    val apiKey: String,
-)
+    override val apiKey: String,
+): Config
 
 fun ContactFormConfig.toMailer(): Mailer {
     return provider.toMailer(apiKey)

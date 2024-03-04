@@ -8,9 +8,9 @@ val koin_ktor_version: String by project
 val kotlinx_serialization_version: String by project
 
 plugins {
-    kotlin("jvm") version "1.9.21"
+    kotlin("jvm") version "1.9.22"
     id("io.ktor.plugin") version "2.3.7"
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.21"
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22"
 }
 
 group = "com.vandeas"
@@ -48,7 +48,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:$logback_version")
 
     implementation("com.sendgrid:sendgrid-java:4.9.3")
-    implementation("com.resend:resend-java:2.2.1")
+    implementation("com.resend:resend-java:3.0.2")
 
     implementation("io.github.irgaly.kfswatch:kfswatch:1.0.0")
 

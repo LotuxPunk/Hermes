@@ -1,6 +1,6 @@
 package com.vandeas.service
 
-import com.vandeas.dto.ContactFormConfig
+import com.vandeas.dto.configs.ContactFormConfig
 
 /**
  * A utility class designed to limit the number of emails sent from a web form based on its configuration.
