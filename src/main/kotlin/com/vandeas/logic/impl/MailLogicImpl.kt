@@ -23,7 +23,7 @@ class MailLogicImpl(
     private val limiter: DailyLimiter
 ) : MailLogic {
 
-    private val mailers: MutableMap<String, Mailer> = mutableMapOf()
+    private val mailers: MutableMap<String, Mailer> = mutableMapOf() //TODO: Update mailers on config change/deletion
 
     override suspend fun sendContactForm(form: ContactForm): Response {
         val config = contactFormConfigHandler.get(form.id)
@@ -70,14 +70,13 @@ class MailLogicImpl(
 
     override suspend fun sendMails(batch: List<MailInput>): List<BatchResponse> = withContext(Dispatchers.IO) {
         val mailsByConfigId = batch.groupBy { mailInput ->
-            mailConfigHandler.get(mailInput.id).apiKey
+            mailConfigHandler.get(mailInput.id)
         }
 
-        mailsByConfigId.entries.map { (apiKey, mails) ->
+        mailsByConfigId.entries.map { (config, mails) ->
             async {
-                mailers[apiKey]?.sendEmails(
+                (mailers[config.apiKey] ?: config.toMailer().also { mailers[config.apiKey] = it }).sendEmails(
                     mails = mails.map { mailInput ->
-                        val config = mailConfigHandler.get(mailInput.id)
                         val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
                         val subjectTemplate = Template.parse(config.subjectTemplate)
 
@@ -88,7 +87,7 @@ class MailLogicImpl(
                             content = contentTemplate.processToString(mailInput.attributes)
                         )
                     }
-                ) ?: BatchResponse(HttpStatusCode.NotFound.value, listOf("No mailer found"))
+                )
             }
         }.awaitAll()
     }
