@@ -68,7 +68,7 @@ class MailLogicImpl(
         )
     }
 
-    override suspend fun sendMails(batch: List<MailInput>): List<BatchResponse> = withContext(Dispatchers.IO) {
+    override suspend fun sendMails(batch: List<MailInput>): List<BatchResponse> = withContext(Dispatchers.Default) {
         val mailsByConfigId = batch.groupBy { mailInput ->
             mailConfigHandler.get(mailInput.id)
         }
