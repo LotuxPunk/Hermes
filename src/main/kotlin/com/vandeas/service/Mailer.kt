@@ -3,8 +3,6 @@ package com.vandeas.service
 import com.vandeas.entities.Mail
 
 interface Mailer {
-    val apiKey: String
-
     fun sendEmail(
         to: String,
         from: String,

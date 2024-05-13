@@ -29,11 +29,10 @@
 
 To run this project, you will need to add the following environment variables
 
-- `CONTACT_FORM_CONFIGS_FOLDER`
-- `MAIL_CONFIGS_FOLDER`
-- `TEMPLATES_FOLDER`
-- `GOOGLE_RECAPTCHA_SECRET`
-- `SENDGRID_API_KEY`
+- `CONTACT_FORM_CONFIGS_FOLDER`: An existing folder in your file system where the contact form configs will be stored.
+- `MAIL_CONFIGS_FOLDER`: An existing folder in your file system where the email configs will be stored.
+- `TEMPLATES_FOLDER`: An existing folder in your file system where the email templates will be stored.
+- `GOOGLE_RECAPTCHA_SECRET`: A Google ReCaptcha secret (required only when using forms).
 
 ## Documentation
 
@@ -41,11 +40,13 @@ To run this project, you will need to add the following environment variables
 
 - ~~[Sendgrid](https://sendgrid.com/)~~ Removed due to lack of support for batch emails requests
 - [Resend](https://resend.io/)
+- Custom SMTP server, that can be configured in the email & contact form configs
 
 ### Contact Form
 
 #### Example of `CONTACT_FORM_CONFIGS_FOLDER` configuration files
 
+**Resend-based config**
 ```json
 {
     "id": "UUID",
@@ -56,7 +57,25 @@ To run this project, you will need to add the following environment variables
     "lang": "fr", // ISO 639-1
     "subjectTemplate": "New mail from {{form.firstName}}",
     "provider": "RESEND",
-    "apiKey": ""
+    "apiKey": "<YOUR_RESEND_API_KEY>"
+}
+```
+
+**SMTP-based config**
+```json
+{
+    "id": "UUID",
+    "dailyLimit": 10,
+    "destination": "john@example.com",
+    "sender": "doe@example.com",
+    "threshold": 0.5, // Recapthca score thresold
+    "lang": "fr", // ISO 639-1
+    "subjectTemplate": "New mail from {{form.firstName}}",
+    "provider": "SMTP",
+    "username": "<SMTP_USERNAME>",
+    "password": "<SMTP_PASSWORD>",
+    "smtpHost": "<SMTP_SERVER_IP>",
+    "smtpPort": "<SMTP_SERVER_PORT>"
 }
 ```
 
@@ -66,13 +85,28 @@ Filename does not have to respect any convention.
 
 #### Example of `MAIL_CONFIGS_FOLDER` configuration files
 
+**Resend-based config**
 ```json
 {
     "id": "UUID",
     "sender": "no-reply@example.com",
     "subjectTemplate": "New mail from {{form.firstName}}",
     "provider": "RESEND",
-    "apiKey": ""
+    "apiKey": "<YOUR_RESEND_API_KEY>"
+}
+```
+
+**SMTP-based config**
+```json
+{
+    "id": "UUID",
+    "sender": "no-reply@example.com",
+    "subjectTemplate": "New mail from {{form.firstName}}",
+    "provider": "SMTP",
+    "username": "<SMTP_USERNAME>",
+    "password": "<SMTP_PASSWORD>",
+    "smtpHost": "<SMTP_SERVER_IP>",
+    "smtpPort": "<SMTP_SERVER_PORT>"
 }
 ```
 
