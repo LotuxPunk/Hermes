@@ -4,7 +4,6 @@ import com.vandeas.dto.ContactForm
 import com.vandeas.dto.MailInput
 import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.dto.configs.MailConfig
-import com.vandeas.dto.configs.toMailer
 import com.vandeas.entities.Mail
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
@@ -43,7 +42,7 @@ class MailLogicImpl(
         val contentTemplate = Template.parse(contactFormConfigHandler.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-        val mailer = mailers[config.apiKey] ?: config.toMailer().also { mailers[config.apiKey] = it }
+        val mailer = mailers[config.identifierFromCredentials()] ?: config.toMailer().also { mailers[config.identifierFromCredentials()] = it }
 
         return mailer.sendEmail(
             from = config.sender,
@@ -58,7 +57,7 @@ class MailLogicImpl(
         val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-        val mailer = mailers[config.apiKey] ?: config.toMailer().also { mailers[config.apiKey] = it }
+        val mailer = mailers[config.identifierFromCredentials()] ?: config.toMailer().also { mailers[config.identifierFromCredentials()] = it }
 
         return mailer.sendEmail(
             from = config.sender,
@@ -75,7 +74,7 @@ class MailLogicImpl(
 
         mailsByConfigId.entries.map { (config, mails) ->
             async {
-                (mailers[config.apiKey] ?: config.toMailer().also { mailers[config.apiKey] = it }).sendEmails(
+                (mailers[config.identifierFromCredentials()] ?: config.toMailer().also { mailers[config.identifierFromCredentials()] = it }).sendEmails(
                     mails = mails.map { mailInput ->
                         val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
                         val subjectTemplate = Template.parse(config.subjectTemplate)

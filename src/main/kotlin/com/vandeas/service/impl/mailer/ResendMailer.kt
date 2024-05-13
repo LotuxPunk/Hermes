@@ -10,7 +10,7 @@ import com.vandeas.service.Response
 import io.ktor.http.*
 
 class ResendMailer(
-    override val apiKey: String
+    apiKey: String
 ): Mailer {
     private val resend = Resend(apiKey)
     override fun sendEmail(to: String, from: String, subject: String, content: String): Response {
