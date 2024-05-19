@@ -5,10 +5,11 @@ import com.vandeas.dto.MailInput
 import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.dto.configs.MailConfig
 import com.vandeas.entities.Mail
+import com.vandeas.entities.SendOperationResult
+import com.vandeas.exception.DailyLimitExceededException
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
 import com.vandeas.service.*
-import io.ktor.http.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -24,11 +25,11 @@ class MailLogicImpl(
 
     private val mailers: MutableMap<String, Mailer> = mutableMapOf() //TODO: Update mailers on config change/deletion
 
-    override suspend fun sendContactForm(form: ContactForm): Response {
+    override suspend fun sendContactForm(form: ContactForm): SendOperationResult {
         val config = contactFormConfigHandler.get(form.id)
 
         if (!limiter.canSendMail(config)) {
-            return Response(HttpStatusCode.TooManyRequests.value, "Daily limit reached")
+            throw DailyLimitExceededException(config.dailyLimit)
         }
 
         val grResponse = googleReCaptcha.verify(System.getenv("GOOGLE_RECAPTCHA_SECRET"), form.recaptchaToken)
@@ -52,7 +53,7 @@ class MailLogicImpl(
         )
     }
 
-    override suspend fun sendMail(mailInput: MailInput): Response {
+    override suspend fun sendMail(mailInput: MailInput): SendOperationResult {
         val config = mailConfigHandler.get(mailInput.id)
         val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
@@ -67,7 +68,7 @@ class MailLogicImpl(
         )
     }
 
-    override suspend fun sendMails(batch: List<MailInput>): List<BatchResponse> = withContext(Dispatchers.Default) {
+    override suspend fun sendMails(batch: List<MailInput>): SendOperationResult = withContext(Dispatchers.Default) {
         val mailsByConfigId = batch.groupBy { mailInput ->
             mailConfigHandler.get(mailInput.id)
         }
@@ -88,6 +89,11 @@ class MailLogicImpl(
                     }
                 )
             }
-        }.awaitAll()
+        }.awaitAll().let { sendResults ->
+            SendOperationResult(
+                sent = sendResults.flatMap { it.sent },
+                failed = sendResults.flatMap { it.failed }
+            )
+        }
     }
 }

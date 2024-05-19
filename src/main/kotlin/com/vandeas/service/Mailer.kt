@@ -1,6 +1,7 @@
 package com.vandeas.service
 
 import com.vandeas.entities.Mail
+import com.vandeas.entities.SendOperationResult
 
 interface Mailer {
     fun sendEmail(
@@ -8,28 +9,10 @@ interface Mailer {
         from: String,
         subject: String,
         content: String,
-    ) : Response
+    ) : SendOperationResult
 
     suspend fun sendEmails(
         mails: List<Mail>,
-    ): BatchResponse
-}
-
-data class Response(
-    val statusCode: Int,
-    val body: String? = null,
-    val headers: Map<String, String> = emptyMap(),
-) {
-    val isSuccessful: Boolean
-        get() = statusCode in 200..299
-}
-
-data class BatchResponse(
-    val statusCode: Int,
-    val body: List<String>? = null,
-    val headers: Map<String, String> = emptyMap(),
-) {
-    val isSuccessful: Boolean
-        get() = statusCode in 200..299
+    ): SendOperationResult
 }
 

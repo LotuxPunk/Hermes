@@ -1,9 +1,9 @@
 package com.vandeas.service.impl.mailer
 
 import com.vandeas.entities.Mail
-import com.vandeas.service.BatchResponse
+import com.vandeas.entities.SendOperationResult
 import com.vandeas.service.Mailer
-import com.vandeas.service.Response
+import io.ktor.util.logging.*
 import java.util.*
 import javax.mail.Authenticator
 import javax.mail.Message
@@ -21,7 +21,9 @@ class SMTPMailer(
 	port: Int = 587
 ): Mailer {
 
-	private val session: Session = Session.getInstance(
+    private val LOGGER = KtorSimpleLogger("com.vandeas.service.impl.mailer.SMTPMailer")
+
+    private val session: Session = Session.getInstance(
 			Properties().apply {
 				put("mail.smtp.host", host)
 				put("mail.smtp.port", "$port")
@@ -35,7 +37,7 @@ class SMTPMailer(
 			},
 		)
 
-	override fun sendEmail(to: String, from: String, subject: String, content: String): Response {
+	override fun sendEmail(to: String, from: String, subject: String, content: String): SendOperationResult {
 		val message = MimeMessage(session).apply {
 			setFrom(InternetAddress(from))
 			addRecipient(Message.RecipientType.TO, InternetAddress(to))
@@ -44,18 +46,28 @@ class SMTPMailer(
 		}
 		return try {
 			Transport.send(message)
-			Response(200, "[$to] ok")
+
+            LOGGER.info("Email sent to $to")
+
+            SendOperationResult(
+                sent = listOf(to)
+            )
 		} catch (e: SendFailedException) {
-			Response(500, "[$to] ${e.message ?: "Unknown error"}")
+            LOGGER.error("Failed to send email to $to")
+            LOGGER.error("Error: ${e.message}")
+
+            SendOperationResult(
+                failed = listOf(to)
+            )
 		}
 	}
 
 	override suspend fun sendEmails(mails: List<Mail>) = mails.map {
 		sendEmail(it.to, it.from, it.subject, it.content)
 	}.let { responses ->
-		BatchResponse(
-			200.takeIf { responses.all { it.isSuccessful } } ?: 500,
-			responses.map { it.body ?: "Unknown error"}
-		)
+        SendOperationResult(
+            sent = responses.flatMap { it.sent },
+            failed = responses.flatMap { it.failed }
+        )
 	}
 }

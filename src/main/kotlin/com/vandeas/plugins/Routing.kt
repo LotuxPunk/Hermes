@@ -2,6 +2,8 @@ package com.vandeas.plugins
 
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.MailInput
+import com.vandeas.entities.MailSendStatus
+import com.vandeas.exception.DailyLimitExceededException
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
 import io.ktor.http.*
@@ -27,15 +29,15 @@ fun Application.configureRouting() {
 
                     try {
                         val response = mailLogic.sendContactForm(contactForm)
-                        if (response.isSuccessful) {
-                            call.respond(HttpStatusCode.NoContent)
-                        } else {
-                            call.respond(HttpStatusCode.fromValue(response.statusCode), response.body ?: "")
-                        }
+                        call.respond(
+                            response.status.toHttpStatusCode(),
+                            response
+                        )
                     } catch (e: Exception) {
                         when (e) {
-                            is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
+                            is DailyLimitExceededException -> call.respond(HttpStatusCode.TooManyRequests, e.message)
                             is RecaptchaFailedException -> call.respond(HttpStatusCode.Forbidden, e.message)
+                            is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
                             else -> call.respond(HttpStatusCode.InternalServerError)
                         }
                     }
@@ -45,25 +47,24 @@ fun Application.configureRouting() {
 
                     try {
                         val responses = mailLogic.sendMails(batch)
-                        call.respond(HttpStatusCode.OK, responses)
+
+                        call.respond(
+                            responses.status.toHttpStatusCode(),
+                            responses
+                        )
                     } catch (e: Exception) {
                         when (e) {
                             is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
                             else -> call.respond(HttpStatusCode.InternalServerError)
                         }
                     }
-
                 }
                 post {
                     val mailInput = call.receive<MailInput>()
 
                     try {
                         val response = mailLogic.sendMail(mailInput)
-                        if (response.isSuccessful) {
-                            call.respond(HttpStatusCode.NoContent)
-                        } else {
-                            call.respond(HttpStatusCode.fromValue(response.statusCode), response.body ?: "")
-                        }
+                        call.respond(response.status.toHttpStatusCode(), response)
                     } catch (e: Exception) {
                         when (e) {
                             is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
@@ -76,4 +77,8 @@ fun Application.configureRouting() {
     }
 }
 
-
+private fun MailSendStatus.toHttpStatusCode(): HttpStatusCode = when (this) {
+    MailSendStatus.SENT -> HttpStatusCode.OK
+    MailSendStatus.PARTIAL -> HttpStatusCode.OK
+    MailSendStatus.FAILED -> HttpStatusCode.InternalServerError
+}

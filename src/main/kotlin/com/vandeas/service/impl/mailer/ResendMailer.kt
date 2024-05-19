@@ -1,19 +1,20 @@
 package com.vandeas.service.impl.mailer
 
 import com.resend.Resend
-import com.resend.core.exception.ResendException
 import com.resend.services.emails.model.CreateEmailOptions
 import com.vandeas.entities.Mail
-import com.vandeas.service.BatchResponse
+import com.vandeas.entities.SendOperationResult
 import com.vandeas.service.Mailer
-import com.vandeas.service.Response
-import io.ktor.http.*
+import io.ktor.util.logging.*
 
 class ResendMailer(
     apiKey: String
 ): Mailer {
     private val resend = Resend(apiKey)
-    override fun sendEmail(to: String, from: String, subject: String, content: String): Response {
+
+    private val LOGGER = KtorSimpleLogger("com.vandeas.service.impl.mailer.ResendMailer")
+
+    override fun sendEmail(to: String, from: String, subject: String, content: String): SendOperationResult {
         val sendMailRequest = CreateEmailOptions.builder()
             .from(from)
             .to(to)
@@ -21,28 +22,27 @@ class ResendMailer(
             .html(content)
             .build()
 
-        try {
+        return try {
             val response = resend.emails().send(sendMailRequest)
 
-            return Response(
-                HttpStatusCode.OK.value,
-                response.id,
+            LOGGER.info("Email sent to $to")
+            LOGGER.info("Email id: ${response.id}")
+
+            SendOperationResult(
+                sent = listOf(to),
             )
         } catch (e: Exception) {
-            if (e is ResendException) {
-                return Response(
-                    HttpStatusCode.InternalServerError.value,
-                    e.message,
-                )
-            }
-            return Response(
-                HttpStatusCode.InternalServerError.value,
-                e.message,
+
+            LOGGER.error("Failed to send email to $to")
+            LOGGER.error("Error: ${e.message}")
+
+            return SendOperationResult(
+                failed = listOf(to),
             )
         }
     }
 
-    override suspend fun sendEmails(mails: List<Mail>): BatchResponse {
+    override suspend fun sendEmails(mails: List<Mail>): SendOperationResult {
         val requests = mails.map {
             CreateEmailOptions.builder()
                 .from(it.from)
@@ -55,20 +55,18 @@ class ResendMailer(
         return try {
             val response = resend.batch().send(requests)
 
-            BatchResponse(
-                HttpStatusCode.OK.value,
-                response.data.map { it.id },
+            LOGGER.info("Emails sent: [${mails.joinToString { it.to }}]")
+            LOGGER.info("Email ids: [${response.data.joinToString { it.id }}]")
+
+            SendOperationResult(
+                sent = mails.map { it.to },
             )
         } catch (e: Exception) {
-            if (e is ResendException) {
-                return BatchResponse(
-                    HttpStatusCode.InternalServerError.value,
-                    e.message?.let(::listOf),
-                )
-            }
-            return BatchResponse(
-                HttpStatusCode.InternalServerError.value,
-                e.message?.let(::listOf),
+            LOGGER.error("Failed to send emails: [${mails.joinToString { it.to }}]")
+            LOGGER.error("Error: ${e.message}")
+
+            return SendOperationResult(
+                failed = mails.map { it.to },
             )
         }
     }
