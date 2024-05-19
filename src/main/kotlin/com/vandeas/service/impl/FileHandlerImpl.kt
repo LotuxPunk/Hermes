@@ -4,6 +4,7 @@ import com.vandeas.service.FileEventListener
 import com.vandeas.service.FileHandler
 import io.github.irgaly.kfswatch.KfsDirectoryWatcher
 import io.github.irgaly.kfswatch.KfsEvent
+import io.ktor.util.logging.*
 import kotlinx.coroutines.*
 import java.io.File
 
@@ -12,6 +13,7 @@ open class FileHandlerImpl(
 ): FileHandler {
     private val files: MutableMap<String, String> = mutableMapOf()
     private val listeners = mutableListOf<FileEventListener>()
+    private val logger = KtorSimpleLogger("com.vandeas.service.impl.FileHandlerImpl")
 
     protected fun addEventListener(listener: FileEventListener) {
         listeners.add(listener)
@@ -33,12 +35,12 @@ open class FileHandlerImpl(
                         it.nameWithoutExtension to it.inputStream().readBytes().toString(Charsets.UTF_8)
                     }?.toMutableMap()
             }.await()?.forEach { (t, u) ->
-                println("Loading file: $t")
+                logger.info("Loading file: $t")
                 files[t] = u
                 listeners.forEach { listener ->
                     listener.onFileCreate(t, u)
                 }
-                println("File loaded: $t")
+                logger.info("File loaded: $t")
             }
 
             watcher.add(directory.absolutePath)
@@ -50,7 +52,7 @@ open class FileHandlerImpl(
                     if (file.isFile) {
                         when (it.event) {
                             KfsEvent.Create, KfsEvent.Modify -> {
-                                println("File created or updated: ${file.name}")
+                                logger.info("File created or updated: ${file.name}")
                                 val content = file.inputStream().readBytes().toString(Charsets.UTF_8)
                                 files[file.nameWithoutExtension] = content
 
@@ -63,7 +65,7 @@ open class FileHandlerImpl(
                                 }
                             }
                             KfsEvent.Delete -> {
-                                println("File deleted: ${file.name}")
+                                logger.info("File deleted: ${file.name}")
                                 files.remove(file.nameWithoutExtension)
                                 listeners.forEach { listener ->
                                     listener.onFileDelete(file.nameWithoutExtension)

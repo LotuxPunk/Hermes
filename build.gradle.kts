@@ -1,5 +1,3 @@
-import io.ktor.plugin.features.*
-
 val ktor_version: String by project
 val kotlin_version: String by project
 val kotlin_coroutines: String by project
@@ -8,19 +6,28 @@ val koin_ktor_version: String by project
 val kotlinx_serialization_version: String by project
 
 plugins {
-    kotlin("jvm") version "1.9.22"
-    id("io.ktor.plugin") version "2.3.7"
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22"
+    kotlin("jvm") version "1.9.23"
+    id("io.ktor.plugin") version "2.3.11"
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.23"
 }
 
 group = "com.vandeas"
-version = "0.0.1"
+version = "1.2.1"
 
 application {
     mainClass.set("com.vandeas.ApplicationKt")
 
     val isDevelopment: Boolean = project.ext.has("development")
     applicationDefaultJvmArgs = listOf("-Dio.ktor.development=$isDevelopment")
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
 }
 
 repositories {
@@ -60,20 +67,4 @@ dependencies {
 
     testImplementation("io.ktor:ktor-server-tests-jvm")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
-}
-
-
-ktor {
-    docker {
-        jreVersion.set(JavaVersion.VERSION_17)
-        localImageName.set("hermes")
-        imageTag.set("0.0.1")
-
-        DockerImageRegistry.externalRegistry(
-            username = providers.environmentVariable("DOCKER_REGISTRY_USERNAME"),
-            password = providers.environmentVariable("DOCKER_REGISTRY_PASSWORD"),
-            project = provider { "hermes" },
-            hostname = providers.environmentVariable("DOCKER_REGISTRY_HOSTNAME")
-        )
-    }
 }
