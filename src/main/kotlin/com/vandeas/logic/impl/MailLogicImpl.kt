@@ -23,6 +23,10 @@ class MailLogicImpl(
     private val limiter: DailyLimiter
 ) : MailLogic {
 
+    companion object {
+        private const val RESEND_BATCH_LIMIT = 100
+    }
+
     private val mailers: MutableMap<String, Mailer> = mutableMapOf() //TODO: Update mailers on config change/deletion
 
     override suspend fun sendContactForm(form: ContactForm): SendOperationResult {
@@ -69,23 +73,39 @@ class MailLogicImpl(
     }
 
     override suspend fun sendMails(batch: List<MailInput>): SendOperationResult = withContext(Dispatchers.Default) {
-        val mailsByConfigId = batch.groupBy { mailInput ->
+        val mailInputsByConfig = batch.groupBy { mailInput ->
             mailConfigHandler.get(mailInput.id)
         }
 
-        mailsByConfigId.entries.map { (config, mails) ->
+        val mailInputsByConfigByIdentifier = mailInputsByConfig.entries.map {
+            it.toPair()
+        }.groupBy { (config, _) ->
+            config.identifierFromCredentials()
+        }
+
+        if (
+            mailInputsByConfigByIdentifier.entries.any { (_, mails) ->
+                mails.sumOf { (_, mailInputs) -> mailInputs.size } > RESEND_BATCH_LIMIT
+            }
+        ) {
+            throw IllegalArgumentException("Resend Batch limit exceeded")
+        }
+
+        mailInputsByConfigByIdentifier.map { (identifier, mailInputsByConfig) ->
             async {
-                (mailers[config.identifierFromCredentials()] ?: config.toMailer().also { mailers[config.identifierFromCredentials()] = it }).sendEmails(
-                    mails = mails.map { mailInput ->
+                (mailers[identifier] ?: mailConfigHandler.get(identifier).toMailer().also { mailers[identifier] = it }).sendEmails(
+                    mails = mailInputsByConfig.flatMap { (config, mailInputs) ->
                         val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
                         val subjectTemplate = Template.parse(config.subjectTemplate)
 
-                        Mail(
-                            from = config.sender,
-                            to = mailInput.email,
-                            subject = subjectTemplate.processToString(mailInput.attributes),
-                            content = contentTemplate.processToString(mailInput.attributes)
-                        )
+                       mailInputs.map { mailInput ->
+                            Mail(
+                                from = config.sender,
+                                to = mailInput.email,
+                                subject = subjectTemplate.processToString(mailInput.attributes),
+                                content = contentTemplate.processToString(mailInput.attributes)
+                            )
+                        }
                     }
                 )
             }
