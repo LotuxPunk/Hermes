@@ -34,6 +34,7 @@ fun Application.configureRouting() {
                             response
                         )
                     } catch (e: Exception) {
+                        application.log.error("Failed to send contact form: ${e.message}")
                         when (e) {
                             is DailyLimitExceededException -> call.respond(HttpStatusCode.TooManyRequests, e.message)
                             is RecaptchaFailedException -> call.respond(HttpStatusCode.Forbidden, e.message)
@@ -55,7 +56,10 @@ fun Application.configureRouting() {
                     } catch (e: Exception) {
                         when (e) {
                             is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
-                            else -> call.respond(HttpStatusCode.InternalServerError)
+                            else -> {
+                                application.log.error("Failed to send batch of mails: ${e.message}")
+                                call.respond(HttpStatusCode.InternalServerError)
+                            }
                         }
                     }
                 }
@@ -68,7 +72,10 @@ fun Application.configureRouting() {
                     } catch (e: Exception) {
                         when (e) {
                             is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
-                            else -> call.respond(HttpStatusCode.InternalServerError)
+                            else -> {
+                                application.log.error("Failed to send mail: ${e.message}")
+                                call.respond(HttpStatusCode.InternalServerError)
+                            }
                         }
                     }
                 }

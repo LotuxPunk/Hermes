@@ -30,7 +30,7 @@ class ConfigDirectoryImpl<T: Config>(
     }
 
     override fun getTemplate(id: String): String {
-        return templateHandler.getFileContent(configs[id]?.second?.id ?: throw NoSuchElementException("Config with id $id not found"))
+        return templateHandler.getFileContent(configs[id]?.second?.id ?: throw NoSuchElementException("Template with id $id not found"))
     }
 
     override fun onFileCreate(fileName: String, content: String) {

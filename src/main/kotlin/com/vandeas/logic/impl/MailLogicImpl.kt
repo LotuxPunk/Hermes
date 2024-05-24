@@ -29,6 +29,8 @@ class MailLogicImpl(
 
     private val mailers: MutableMap<String, Mailer> = mutableMapOf() //TODO: Update mailers on config change/deletion
 
+    private fun MailConfig.getMailerOrCreate(): Mailer = mailers[id] ?: this.toMailer().also { mailers[id] = it }
+
     override suspend fun sendContactForm(form: ContactForm): SendOperationResult {
         val config = contactFormConfigHandler.get(form.id)
 
@@ -77,43 +79,43 @@ class MailLogicImpl(
             mailConfigHandler.get(mailInput.id)
         }
 
-        val mailInputsByConfigByIdentifier = mailInputsByConfig.entries.map {
-            it.toPair()
-        }.groupBy { (config, _) ->
+        val mailerByIdentifier = mailInputsByConfig.keys.groupBy { config ->
             config.identifierFromCredentials()
+        }.mapValues { (_, configs) ->
+            configs.first().getMailerOrCreate()
         }
 
-        if (
-            mailInputsByConfigByIdentifier.entries.any { (_, mails) ->
-                mails.sumOf { (_, mailInputs) -> mailInputs.size } > RESEND_BATCH_LIMIT
-            }
-        ) {
-            throw IllegalArgumentException("Resend Batch limit exceeded")
+        val mailInputsByIdentifier = mailInputsByConfig.entries.groupBy { (config, _) ->
+            config.identifierFromCredentials()
+        }.mapValues { (_, mails) ->
+            mails.flatMap { (_, mailInputs) -> mailInputs }
         }
 
-        mailInputsByConfigByIdentifier.map { (identifier, mailInputsByConfig) ->
+        require(mailInputsByIdentifier.values.all { mails -> mails.size <= RESEND_BATCH_LIMIT }) {
+            "Resend Batch limit exceeded"
+        }
+
+        val sendResults = mailInputsByIdentifier.map { (identifier, mailInputs) ->
             async {
-                (mailers[identifier] ?: mailConfigHandler.get(identifier).toMailer().also { mailers[identifier] = it }).sendEmails(
-                    mails = mailInputsByConfig.flatMap { (config, mailInputs) ->
-                        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
-                        val subjectTemplate = Template.parse(config.subjectTemplate)
+                mailerByIdentifier[identifier]!!.sendEmails(
+                    mails = mailInputs.map { mailInput ->
+                        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(mailInput.id))
+                        val subjectTemplate = Template.parse(mailConfigHandler.get(mailInput.id).subjectTemplate)
 
-                       mailInputs.map { mailInput ->
-                            Mail(
-                                from = config.sender,
-                                to = mailInput.email,
-                                subject = subjectTemplate.processToString(mailInput.attributes),
-                                content = contentTemplate.processToString(mailInput.attributes)
-                            )
-                        }
+                        Mail(
+                            from = mailConfigHandler.get(mailInput.id).sender,
+                            to = mailInput.email,
+                            subject = subjectTemplate.processToString(mailInput.attributes),
+                            content = contentTemplate.processToString(mailInput.attributes)
+                        )
                     }
                 )
             }
-        }.awaitAll().let { sendResults ->
-            SendOperationResult(
-                sent = sendResults.flatMap { it.sent },
-                failed = sendResults.flatMap { it.failed }
-            )
-        }
+        }.awaitAll()
+
+        SendOperationResult(
+            sent = sendResults.flatMap { it.sent },
+            failed = sendResults.flatMap { it.failed }
+        )
     }
 }
