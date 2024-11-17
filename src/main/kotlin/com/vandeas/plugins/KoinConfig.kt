@@ -46,15 +46,15 @@ fun Application.configureKoin() {
         modules(appModule)
     }
 
-    environment.monitor.subscribe(KoinApplicationStarted) {
+    this.monitor.subscribe(KoinApplicationStarted) {
         log.info("Koin started.")
     }
 
-    environment.monitor.subscribe(KoinApplicationStopPreparing) {
+    this.monitor.subscribe(KoinApplicationStopPreparing) {
         log.info("Koin stopping...")
     }
 
-    environment.monitor.subscribe(KoinApplicationStopped) {
+    this.monitor.subscribe(KoinApplicationStopped) {
         log.info("Koin stopped.")
     }
 }

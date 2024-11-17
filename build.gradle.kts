@@ -6,9 +6,9 @@ val koin_ktor_version: String by project
 val kotlinx_serialization_version: String by project
 
 plugins {
-    kotlin("jvm") version "1.9.23"
-    id("io.ktor.plugin") version "2.3.11"
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.23"
+    kotlin("jvm") version "2.0.21"
+    id("io.ktor.plugin") version "3.0.1"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21"
 }
 
 group = "com.vandeas"
@@ -54,17 +54,16 @@ dependencies {
 
     implementation("ch.qos.logback:logback-classic:$logback_version")
 
-    implementation("com.sendgrid:sendgrid-java:4.9.3")
-    implementation("com.resend:resend-java:3.0.2")
+    implementation("com.resend:resend-java:3.1.0")
 
-    implementation("io.github.irgaly.kfswatch:kfswatch:1.0.0")
+    implementation("io.github.irgaly.kfswatch:kfswatch:1.3.0")
 
-    implementation("net.pwall.mustache:kotlin-mustache:0.11")
+    implementation("net.pwall.mustache:kotlin-mustache:0.12")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinx_serialization_version")
 
     implementation("com.sun.mail:javax.mail:1.6.2")
 
-    testImplementation("io.ktor:ktor-server-tests-jvm")
+    testImplementation("io.ktor:ktor-server-test-host")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 }
