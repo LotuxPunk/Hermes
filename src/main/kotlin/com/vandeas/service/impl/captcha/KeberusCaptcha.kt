@@ -34,6 +34,7 @@ class KerberusCaptcha(
     ): CaptchaResult {
         return challengeCache.get(userResponse.id)?.let {
             if (validateSolution(it, userResponse, secretKey)) {
+                challengeCache.invalidate(userResponse.id)
                 CaptchaResult.Success
             } else {
                 CaptchaResult.Failure
