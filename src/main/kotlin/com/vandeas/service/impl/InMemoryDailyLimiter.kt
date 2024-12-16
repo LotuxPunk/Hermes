@@ -31,12 +31,16 @@ class InMemoryDailyLimiter : DailyLimiter {
     }
 
     override fun canSendMail(config: ContactFormConfig): Boolean {
+        if (config.dailyLimit <= 0) {
+            return true
+        }
+
         val today = LocalDate.now()
         cleanupOldEntry(config.id, today)
 
         return mailSendDatabase[config.id]?.let {
             it.count < config.dailyLimit
-        } ?: true
+        } != false
     }
 
     override fun recordMailSent(config: ContactFormConfig): Boolean {

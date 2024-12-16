@@ -7,8 +7,9 @@ import com.vandeas.logic.impl.MailLogicImpl
 import com.vandeas.service.ConfigDirectory
 import com.vandeas.service.DailyLimiter
 import com.vandeas.service.FileHandler
-import com.vandeas.service.ReCaptcha
 import com.vandeas.service.impl.*
+import com.vandeas.service.impl.captcha.GoogleReCaptcha
+import com.vandeas.service.impl.captcha.KerberusCaptcha
 import com.vandeas.utils.Constants
 import io.ktor.server.application.*
 import org.koin.core.qualifier.named
@@ -20,9 +21,6 @@ import org.koin.ktor.plugin.KoinApplicationStopped
 import org.koin.logger.slf4jLogger
 
 val appModule = module {
-    single<ReCaptcha> {
-        GoogleReCaptcha()
-    }
     single<DailyLimiter> {
         InMemoryDailyLimiter()
     }
