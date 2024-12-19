@@ -2,17 +2,21 @@ package com.vandeas.plugins
 
 import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.dto.configs.MailConfig
+import com.vandeas.logic.KerberusLogic
 import com.vandeas.logic.MailLogic
+import com.vandeas.logic.impl.KerberusLogicImpl
 import com.vandeas.logic.impl.MailLogicImpl
 import com.vandeas.service.ConfigDirectory
 import com.vandeas.service.DailyLimiter
 import com.vandeas.service.FileHandler
-import com.vandeas.service.ReCaptcha
 import com.vandeas.service.impl.*
+import com.vandeas.service.impl.captcha.GoogleReCaptcha
+import com.vandeas.service.impl.captcha.KerberusCaptcha
 import com.vandeas.utils.Constants
 import io.ktor.server.application.*
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import org.koin.dsl.single
 import org.koin.ktor.plugin.Koin
 import org.koin.ktor.plugin.KoinApplicationStarted
 import org.koin.ktor.plugin.KoinApplicationStopPreparing
@@ -20,14 +24,14 @@ import org.koin.ktor.plugin.KoinApplicationStopped
 import org.koin.logger.slf4jLogger
 
 val appModule = module {
-    single<ReCaptcha> {
-        GoogleReCaptcha()
-    }
     single<DailyLimiter> {
         InMemoryDailyLimiter()
     }
+    single<KerberusLogic> {
+        KerberusLogicImpl(get(named("contactFormConfig")))
+    }
     single<MailLogic> {
-        MailLogicImpl(get(named("mailConfig")), get(named("contactFormConfig")), get(), get())
+        MailLogicImpl(get(named("mailConfig")), get(named("contactFormConfig")), get())
     }
     single<FileHandler>(named("template"), true) {
         FileHandlerImpl(Constants.templateDir)
@@ -46,15 +50,15 @@ fun Application.configureKoin() {
         modules(appModule)
     }
 
-    environment.monitor.subscribe(KoinApplicationStarted) {
+    this.monitor.subscribe(KoinApplicationStarted) {
         log.info("Koin started.")
     }
 
-    environment.monitor.subscribe(KoinApplicationStopPreparing) {
+    this.monitor.subscribe(KoinApplicationStopPreparing) {
         log.info("Koin stopping...")
     }
 
-    environment.monitor.subscribe(KoinApplicationStopped) {
+    this.monitor.subscribe(KoinApplicationStopped) {
         log.info("Koin stopped.")
     }
 }

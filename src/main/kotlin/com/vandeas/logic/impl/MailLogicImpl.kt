@@ -1,15 +1,21 @@
 package com.vandeas.logic.impl
 
 import com.vandeas.dto.ContactForm
+import com.vandeas.dto.GoogleRecaptchaContactForm
+import com.vandeas.dto.KerberusContactForm
 import com.vandeas.dto.MailInput
 import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.dto.configs.MailConfig
+import com.vandeas.dto.configs.captcha.GoogleRecaptchaConfig
+import com.vandeas.dto.configs.captcha.KerberusConfig
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.exception.DailyLimitExceededException
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
 import com.vandeas.service.*
+import com.vandeas.service.impl.captcha.GoogleReCaptcha
+import com.vandeas.service.impl.captcha.KerberusCaptcha
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -19,7 +25,6 @@ import net.pwall.mustache.Template
 class MailLogicImpl(
     private val mailConfigHandler: ConfigDirectory<MailConfig>,
     private val contactFormConfigHandler: ConfigDirectory<ContactFormConfig>,
-    private val googleReCaptcha: ReCaptcha,
     private val limiter: DailyLimiter
 ) : MailLogic {
 
@@ -38,9 +43,13 @@ class MailLogicImpl(
             throw DailyLimitExceededException(config.dailyLimit)
         }
 
-        val grResponse = googleReCaptcha.verify(System.getenv("GOOGLE_RECAPTCHA_SECRET"), form.recaptchaToken)
+        val captchaResult = when (val captchaConfig = config.captcha) {
+            is GoogleRecaptchaConfig if form is GoogleRecaptchaContactForm -> GoogleReCaptcha.verify(captchaConfig, form.recaptchaToken)
+            is KerberusConfig if form is KerberusContactForm -> KerberusCaptcha.get(captchaConfig.secretKey).verify(captchaConfig, form.solution)
+            else -> throw IllegalArgumentException("Invalid captcha config")
+        }
 
-        if (!grResponse.success && grResponse.score >= config.threshold) {
+        if (captchaResult is CaptchaResult.Failure) {
             throw RecaptchaFailedException()
         }
 
