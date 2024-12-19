@@ -10,6 +10,5 @@ COPY --from=build /home/gradle/src/build/libs/*.jar /app/hermes.jar
 ENV CONTACT_FORM_CONFIGS_FOLDER=
 ENV MAIL_CONFIGS_FOLDER=
 ENV TEMPLATES_FOLDER=
-ENV GOOGLE_RECAPTCHA_SECRET=
 ENTRYPOINT ["java","-jar","/app/hermes.jar"]
 LABEL org.opencontainers.image.source=https://github.com/LotuxPunk/Hermes

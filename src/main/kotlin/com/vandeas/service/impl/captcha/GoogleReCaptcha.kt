@@ -6,14 +6,14 @@ import com.vandeas.service.Captcha
 import com.vandeas.service.CaptchaResult
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.jetty.Jetty
+import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
-import io.ktor.serialization.kotlinx.json.json
+import io.ktor.serialization.kotlinx.json.*
 
 object GoogleReCaptcha: Captcha<String, GoogleRecaptchaConfig> {
 
-    private val client = HttpClient(Jetty) {
+    private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json()
         }

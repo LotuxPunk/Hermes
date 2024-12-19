@@ -58,7 +58,7 @@ dependencies {
     implementation("io.ktor:ktor-server-netty")
     implementation("io.ktor:ktor-server-mustache")
 
-    implementation("io.ktor:ktor-client-jetty")
+    implementation("io.ktor:ktor-client-okhttp")
     implementation("io.ktor:ktor-client-core")
     implementation("io.ktor:ktor-client-content-negotiation")
 
