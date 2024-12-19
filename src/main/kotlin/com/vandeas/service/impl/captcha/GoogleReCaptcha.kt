@@ -9,6 +9,8 @@ import io.ktor.client.call.*
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.*
 
 object GoogleReCaptcha: Captcha<String, GoogleRecaptchaConfig> {
@@ -21,9 +23,17 @@ object GoogleReCaptcha: Captcha<String, GoogleRecaptchaConfig> {
 
     override suspend fun verify(config: GoogleRecaptchaConfig, userResponse: String): CaptchaResult {
         val (secretKey, threshold) = config
-        val response =
-            client.post("https://www.google.com/recaptcha/api/siteverify?secret=$secretKey&response=$userResponse")
-                .body<GoogleRecaptchaResponse>()
+        val response = client.post {
+                url {
+                    url("https://www.google.com/recaptcha/api/siteverify")
+                    parameter("secret", secretKey)
+                    parameter("response", userResponse)
+                }
+                headers {
+                    accept(ContentType.Application.Json)
+                    contentType(ContentType.Application.Json)
+                }
+            }.body<GoogleRecaptchaResponse>()
 
         return when (response.success) {
             true if response.score >= threshold -> CaptchaResult.Success

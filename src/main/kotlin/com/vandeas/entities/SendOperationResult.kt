@@ -1,5 +1,7 @@
 package com.vandeas.entities
 
+import kotlinx.serialization.Serializable
+
 /**
  * Enum class representing the status of a send operation.
  * @property SENT The operation was successful.
@@ -19,6 +21,7 @@ enum class MailSendStatus {
  *
  * @property status Status of the send operation.
  */
+@Serializable
 data class SendOperationResult(
     val sent: List<String> = emptyList(),
     val failed: List<String> = emptyList(),
