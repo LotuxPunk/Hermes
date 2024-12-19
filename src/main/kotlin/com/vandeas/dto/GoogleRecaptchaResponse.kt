@@ -1,12 +1,15 @@
 package com.vandeas.dto
 
-import com.fasterxml.jackson.annotation.JsonProperty
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
+@Serializable
 data class GoogleRecaptchaResponse(
     val success: Boolean,
-    @JsonProperty("challenge_ts") val challengeTs: String,
+    @SerialName("challenge_ts") val challengeTs: String,
     val hostname: String,
-    @JsonProperty("error-codes") val errorCodes: List<Any>? = null,
+    @SerialName("error-codes") val errorCodes: List<JsonElement>? = null,
     val score: Double,
     val action: String
 )

@@ -2,7 +2,9 @@ package com.vandeas.plugins
 
 import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.dto.configs.MailConfig
+import com.vandeas.logic.KerberusLogic
 import com.vandeas.logic.MailLogic
+import com.vandeas.logic.impl.KerberusLogicImpl
 import com.vandeas.logic.impl.MailLogicImpl
 import com.vandeas.service.ConfigDirectory
 import com.vandeas.service.DailyLimiter
@@ -14,6 +16,7 @@ import com.vandeas.utils.Constants
 import io.ktor.server.application.*
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import org.koin.dsl.single
 import org.koin.ktor.plugin.Koin
 import org.koin.ktor.plugin.KoinApplicationStarted
 import org.koin.ktor.plugin.KoinApplicationStopPreparing
@@ -24,8 +27,11 @@ val appModule = module {
     single<DailyLimiter> {
         InMemoryDailyLimiter()
     }
+    single<KerberusLogic> {
+        KerberusLogicImpl(get(named("contactFormConfig")))
+    }
     single<MailLogic> {
-        MailLogicImpl(get(named("mailConfig")), get(named("contactFormConfig")), get(), get())
+        MailLogicImpl(get(named("mailConfig")), get(named("contactFormConfig")), get())
     }
     single<FileHandler>(named("template"), true) {
         FileHandlerImpl(Constants.templateDir)

@@ -5,9 +5,10 @@ import com.vandeas.dto.MailInput
 import com.vandeas.entities.MailSendStatus
 import com.vandeas.exception.DailyLimitExceededException
 import com.vandeas.exception.RecaptchaFailedException
+import com.vandeas.logic.KerberusLogic
 import com.vandeas.logic.MailLogic
 import io.ktor.http.*
-import io.ktor.serialization.jackson.*
+import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.request.*
@@ -17,12 +18,19 @@ import org.koin.ktor.ext.inject
 
 fun Application.configureRouting() {
     val mailLogic by inject<MailLogic>()
+    val kerberusLogic by inject<KerberusLogic>()
 
     install(ContentNegotiation) {
-        jackson { }
+        json()
     }
     routing {
         route("/v1") {
+            get("/challenge") {
+                call.parameters["configId"]?.let { configId ->
+                    val challenge = kerberusLogic.getChallenge(configId)
+                    call.respond(HttpStatusCode.OK, challenge)
+                } ?: call.respond(HttpStatusCode.BadRequest, "Missing configId parameter")
+            }
             route("/mail") {
                 post("/contact") {
                     val contactForm = call.receive<ContactForm>()

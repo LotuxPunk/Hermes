@@ -13,7 +13,6 @@ sealed interface ContactFormConfig : Config {
     val dailyLimit: Int
     val destination: String
     val sender: String
-    val threshold: Double
     val lang: String
     val subjectTemplate: String
     val captcha: CaptchaConfig
@@ -26,7 +25,6 @@ data class ResendContactFormConfig(
     override val dailyLimit: Int,
     override val destination: String,
     override val sender: String,
-    override val threshold: Double,
     override val lang: String,
     override val subjectTemplate: String,
     override val apiKey: String,
@@ -40,7 +38,6 @@ data class SMTPContactFormConfig(
     override val dailyLimit: Int,
     override val destination: String,
     override val sender: String,
-    override val threshold: Double,
     override val lang: String,
     override val subjectTemplate: String,
     override val username: String,

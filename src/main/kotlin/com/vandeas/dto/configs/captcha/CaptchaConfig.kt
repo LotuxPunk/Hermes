@@ -11,7 +11,7 @@ const val KERBERUS_SERIAL_NAME = "KERBERUS"
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
-@JsonClassDiscriminator("captcha")
+@JsonClassDiscriminator("provider")
 sealed interface CaptchaConfig {
     val secretKey: String
 }
