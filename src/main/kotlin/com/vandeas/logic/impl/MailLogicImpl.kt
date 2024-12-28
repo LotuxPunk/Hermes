@@ -60,11 +60,25 @@ class MailLogicImpl(
 
         val mailer = mailers[config.identifierFromCredentials()] ?: config.toMailer().also { mailers[config.identifierFromCredentials()] = it }
 
-        return mailer.sendEmail(
-            from = config.sender,
-            to = config.destination,
-            subject = subjectTemplate.processToString(mapOf("form" to form)),
-            content = contentTemplate.processToString(mapOf("form" to form))
+        val subject = subjectTemplate.processToString(mapOf("form" to form))
+        val content = contentTemplate.processToString(mapOf("form" to form))
+
+        return mailer.sendEmails(
+            mails = form.destinations.takeIf { it.isNotEmpty() }?.map { destination ->
+                Mail(
+                    from = config.sender,
+                    to = destination,
+                    subject = subject,
+                    content = content
+                )
+            } ?: listOf(
+                Mail(
+                    from = config.sender,
+                    to = config.destination,
+                    subject = subject,
+                    content = content
+                )
+            )
         )
     }
 

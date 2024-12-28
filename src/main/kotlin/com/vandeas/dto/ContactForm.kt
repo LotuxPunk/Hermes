@@ -18,6 +18,7 @@ sealed interface ContactForm {
     val phone: String?
     val topic: String?
     val content: String
+    val destinations: List<String>
 }
 
 @SerialName(GOOGLE_RECAPTCHA_SERIAL_NAME)
@@ -29,6 +30,7 @@ data class GoogleRecaptchaContactForm(
     override val content: String,
     override val phone: String? = null,
     override val topic: String? = null,
+    override val destinations: List<String> = emptyList(),
     val recaptchaToken: String,
 ) : ContactForm
 
@@ -41,5 +43,6 @@ data class KerberusContactForm(
     override val content: String,
     override val phone: String? = null,
     override val topic: String? = null,
+    override val destinations: List<String> = emptyList(),
     val solution: Solution
 ) : ContactForm
