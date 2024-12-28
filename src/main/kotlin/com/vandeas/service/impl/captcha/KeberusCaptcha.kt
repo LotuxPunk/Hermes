@@ -47,7 +47,7 @@ class KerberusCaptcha(
 
         val baseSalts = 10
         val scalingFactor = 20
-        val saltCount = (baseSalts + log10(countForKey.toDouble()) * scalingFactor).toInt()
+        val saltCount = (baseSalts + log10(countForKey.takeIf { it > 0 }?.toDouble() ?: 1.toDouble()) * scalingFactor).toInt()
 
         return Challenge(
             id = defaultCryptoService.strongRandom.randomUUID(),
