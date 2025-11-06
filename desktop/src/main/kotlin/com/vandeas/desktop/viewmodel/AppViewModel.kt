@@ -88,12 +88,22 @@ class AppViewModel {
             connectionStatus = "Connecting..."
             
             try {
-                sshManager.connect(
-                    host = config.host,
-                    port = config.port,
-                    username = config.username,
-                    password = config.password
-                )
+                if (config.usePrivateKey) {
+                    sshManager.connectWithPrivateKey(
+                        host = config.host,
+                        port = config.port,
+                        username = config.username,
+                        privateKeyPath = config.privateKeyPath,
+                        passphrase = config.privateKeyPassphrase.ifEmpty { null }
+                    )
+                } else {
+                    sshManager.connect(
+                        host = config.host,
+                        port = config.port,
+                        username = config.username,
+                        password = config.password
+                    )
+                }
                 
                 isConnected = true
                 connectionStatus = "Connected to ${config.host}"

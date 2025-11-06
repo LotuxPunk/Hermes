@@ -11,6 +11,9 @@ data class SshConfig(
     val port: Int = 22,
     val username: String = "",
     val password: String = "",
+    val privateKeyPath: String = "",
+    val privateKeyPassphrase: String = "",
+    val usePrivateKey: Boolean = false,
     val templatesPath: String = "",
     val mailConfigsPath: String = "",
     val contactFormConfigsPath: String = ""

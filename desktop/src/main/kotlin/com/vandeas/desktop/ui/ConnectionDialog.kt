@@ -1,12 +1,16 @@
 package com.vandeas.desktop.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.vandeas.desktop.model.SshConfig
+import java.awt.FileDialog
+import java.awt.Frame
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -19,6 +23,9 @@ fun ConnectionDialog(
     var port by remember { mutableStateOf(config.port.toString()) }
     var username by remember { mutableStateOf(config.username) }
     var password by remember { mutableStateOf(config.password) }
+    var usePrivateKey by remember { mutableStateOf(config.usePrivateKey) }
+    var privateKeyPath by remember { mutableStateOf(config.privateKeyPath) }
+    var privateKeyPassphrase by remember { mutableStateOf(config.privateKeyPassphrase) }
     var templatesPath by remember { mutableStateOf(config.templatesPath) }
     var mailConfigsPath by remember { mutableStateOf(config.mailConfigsPath) }
     var contactFormConfigsPath by remember { mutableStateOf(config.contactFormConfigsPath) }
@@ -57,16 +64,85 @@ fun ConnectionDialog(
                     singleLine = true
                 )
                 
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation()
-                )
+                HorizontalDivider()
                 
-                Divider()
+                // Authentication method toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Authentication Method:",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = !usePrivateKey,
+                        onClick = { usePrivateKey = false },
+                        label = { Text("Password") }
+                    )
+                    FilterChip(
+                        selected = usePrivateKey,
+                        onClick = { usePrivateKey = true },
+                        label = { Text("Private Key") }
+                    )
+                }
+                
+                if (!usePrivateKey) {
+                    // Password authentication
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                } else {
+                    // Private key authentication
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = privateKeyPath,
+                            onValueChange = { privateKeyPath = it },
+                            label = { Text("Private Key Path") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("~/.ssh/id_rsa") }
+                        )
+                        
+                        IconButton(
+                            onClick = {
+                                val fileDialog = FileDialog(null as Frame?, "Select Private Key", FileDialog.LOAD)
+                                fileDialog.isVisible = true
+                                fileDialog.file?.let { file ->
+                                    privateKeyPath = "${fileDialog.directory}$file"
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Folder, "Browse")
+                        }
+                    }
+                    
+                    OutlinedTextField(
+                        value = privateKeyPassphrase,
+                        onValueChange = { privateKeyPassphrase = it },
+                        label = { Text("Passphrase (optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                }
+                
+                HorizontalDivider()
                 
                 Text(
                     "Remote Paths",
@@ -109,13 +185,17 @@ fun ConnectionDialog(
                         port = port.toIntOrNull() ?: 22,
                         username = username,
                         password = password,
+                        usePrivateKey = usePrivateKey,
+                        privateKeyPath = privateKeyPath,
+                        privateKeyPassphrase = privateKeyPassphrase,
                         templatesPath = templatesPath,
                         mailConfigsPath = mailConfigsPath,
                         contactFormConfigsPath = contactFormConfigsPath
                     )
                     onConnect(newConfig)
                 },
-                enabled = host.isNotBlank() && username.isNotBlank()
+                enabled = host.isNotBlank() && username.isNotBlank() && 
+                    ((!usePrivateKey && password.isNotBlank()) || (usePrivateKey && privateKeyPath.isNotBlank()))
             ) {
                 Text("Connect")
             }

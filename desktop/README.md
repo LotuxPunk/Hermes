@@ -39,7 +39,10 @@ To run the application without building an installer:
 
 1. **Connect to SSH Server**:
    - Click the "Connect" button in the top right
-   - Enter your SSH server details (host, port, username, password)
+   - Enter your SSH server details (host, port, username)
+   - Choose authentication method:
+     - **Password**: Enter your password
+     - **Private Key**: Select your private key file (e.g., `~/.ssh/id_rsa`) and optionally enter passphrase
    - Specify the remote paths for templates, mail configs, and contact form configs
    - Click "Connect"
 
@@ -68,13 +71,32 @@ SSH connection settings and remote paths are saved locally in:
 - Linux/macOS: `~/.hermes-desktop/config.json`
 - Windows: `%USERPROFILE%\.hermes-desktop\config.json`
 
-Example configuration:
+Example configuration with password authentication:
 ```json
 {
   "host": "example.com",
   "port": 22,
   "username": "user",
   "password": "password",
+  "usePrivateKey": false,
+  "privateKeyPath": "",
+  "privateKeyPassphrase": "",
+  "templatesPath": "/var/hermes/templates",
+  "mailConfigsPath": "/var/hermes/mail-configs",
+  "contactFormConfigsPath": "/var/hermes/contact-form-configs"
+}
+```
+
+Example configuration with private key authentication:
+```json
+{
+  "host": "example.com",
+  "port": 22,
+  "username": "user",
+  "password": "",
+  "usePrivateKey": true,
+  "privateKeyPath": "/home/user/.ssh/id_rsa",
+  "privateKeyPassphrase": "",
   "templatesPath": "/var/hermes/templates",
   "mailConfigsPath": "/var/hermes/mail-configs",
   "contactFormConfigsPath": "/var/hermes/contact-form-configs"
@@ -96,4 +118,6 @@ Key technologies:
 
 ## Security Note
 
-Passwords are stored in plain text in the local configuration file. For production use, consider implementing more secure credential storage or using SSH key-based authentication.
+**Password Storage**: When using password authentication, passwords are stored in plain text in the local configuration file.
+
+**Private Key Authentication (Recommended)**: For better security, use SSH private key authentication instead of passwords. This is the recommended approach for production use. The private key itself is not stored in the configuration file - only the path to the key file is saved.

@@ -5,7 +5,9 @@ import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.sftp.SFTPClient
 import net.schmizz.sshj.sftp.OpenMode
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
+import net.schmizz.sshj.userauth.keyprovider.KeyProvider
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 private val logger = KotlinLogging.logger {}
 
@@ -17,7 +19,7 @@ class SshFileManager {
     private var sftpClient: SFTPClient? = null
     
     /**
-     * Connect to SSH server
+     * Connect to SSH server using password authentication
      */
     fun connect(host: String, port: Int, username: String, password: String) {
         disconnect()
@@ -36,6 +38,44 @@ class SshFileManager {
             logger.info { "Successfully connected to SSH server" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to connect to SSH server" }
+            disconnect()
+            throw e
+        }
+    }
+    
+    /**
+     * Connect to SSH server using private key authentication
+     */
+    fun connectWithPrivateKey(
+        host: String,
+        port: Int,
+        username: String,
+        privateKeyPath: String,
+        passphrase: String? = null
+    ) {
+        disconnect()
+        
+        try {
+            logger.info { "Connecting to SSH server with private key: $username@$host:$port" }
+            
+            val client = SSHClient()
+            client.addHostKeyVerifier(PromiscuousVerifier())
+            client.connect(host, port)
+            
+            val keyProvider: KeyProvider = if (passphrase.isNullOrEmpty()) {
+                client.loadKeys(privateKeyPath)
+            } else {
+                client.loadKeys(privateKeyPath, passphrase)
+            }
+            
+            client.authPublickey(username, keyProvider)
+            
+            sshClient = client
+            sftpClient = client.newSFTPClient()
+            
+            logger.info { "Successfully connected to SSH server with private key" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to connect to SSH server with private key" }
             disconnect()
             throw e
         }
