@@ -81,7 +81,7 @@ class SshFileManager {
             }.filter { it.name != "." && it.name != ".." }
         } catch (e: Exception) {
             logger.error(e) { "Failed to list files in path: $path" }
-            emptyList()
+            throw e
         }
     }
     

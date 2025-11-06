@@ -28,7 +28,7 @@ fun main() = application {
     
     Window(
         onCloseRequest = {
-            viewModel.disconnect()
+            viewModel.onDispose()
             exitApplication()
         },
         title = "Hermes Desktop - SSH Config Manager"
