@@ -58,6 +58,15 @@ class SshFileManager {
         try {
             logger.info { "Connecting to SSH server with private key: $username@$host:$port" }
             
+            // Validate private key file exists and is readable
+            val keyFile = File(privateKeyPath)
+            if (!keyFile.exists()) {
+                throw IllegalArgumentException("Private key file does not exist: $privateKeyPath")
+            }
+            if (!keyFile.canRead()) {
+                throw IllegalArgumentException("Private key file is not readable: $privateKeyPath")
+            }
+            
             val client = SSHClient()
             client.addHostKeyVerifier(PromiscuousVerifier())
             client.connect(host, port)

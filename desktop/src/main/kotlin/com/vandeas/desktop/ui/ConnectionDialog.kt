@@ -195,7 +195,8 @@ fun ConnectionDialog(
                     onConnect(newConfig)
                 },
                 enabled = host.isNotBlank() && username.isNotBlank() && 
-                    ((!usePrivateKey && password.isNotBlank()) || (usePrivateKey && privateKeyPath.isNotBlank()))
+                    ((!usePrivateKey && password.isNotBlank()) || 
+                     (usePrivateKey && privateKeyPath.isNotBlank() && java.io.File(privateKeyPath).exists()))
             ) {
                 Text("Connect")
             }
