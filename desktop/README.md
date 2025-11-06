@@ -68,6 +68,32 @@ SSH connection settings and remote paths are saved locally in:
 - Linux/macOS: `~/.hermes-desktop/config.json`
 - Windows: `%USERPROFILE%\.hermes-desktop\config.json`
 
+Example configuration:
+```json
+{
+  "host": "example.com",
+  "port": 22,
+  "username": "user",
+  "password": "password",
+  "templatesPath": "/var/hermes/templates",
+  "mailConfigsPath": "/var/hermes/mail-configs",
+  "contactFormConfigsPath": "/var/hermes/contact-form-configs"
+}
+```
+
+## Architecture
+
+The desktop application follows MVVM architecture:
+- **Model**: SSH configuration and file data models
+- **ViewModel**: Application state and business logic using Kotlin coroutines
+- **View**: Compose UI components with Material 3 design
+
+Key technologies:
+- **Compose Multiplatform 1.7.1**: Cross-platform UI framework
+- **SSHJ 0.38.0**: SSH and SFTP operations
+- **Kotlinx Serialization**: JSON configuration persistence
+- **Kotlin Coroutines**: Asynchronous operations
+
 ## Security Note
 
 Passwords are stored in plain text in the local configuration file. For production use, consider implementing more secure credential storage or using SSH key-based authentication.
