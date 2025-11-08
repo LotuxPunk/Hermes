@@ -1,11 +1,12 @@
 
 # Hermes
 
- Mailer micro-service for vandeas 
+Mailer micro-service for vandeas 
 
 ## Table of content
 
 - [Environment Variables](#environment-variables)
+- [Desktop Application](#desktop-application)
 - [Documentation](#documentation)
   - [Supported Mail Providers](#supported-mail-providers)
   - [Contact Form](#contact-form)
@@ -33,6 +34,30 @@ To run this project, you will need to add the following environment variables
 - `MAIL_CONFIGS_FOLDER`: An existing folder in your file system where the email configs will be stored.
 - `TEMPLATES_FOLDER`: An existing folder in your file system where the email templates will be stored.
 - `GOOGLE_RECAPTCHA_SECRET`: A Google ReCaptcha secret (required only when using forms).
+
+## Desktop Application
+
+Hermes now includes a **Compose Multiplatform desktop application** for managing mail templates and configurations via SSH!
+
+### Features
+
+- **Remote Management**: Connect to your server via SSH and manage files remotely
+- **Template Editor**: Browse, edit, create, and delete mail templates (.hbs files)
+- **Config Management**: Manage mail and contact form configuration files (JSON)
+- **Modern UI**: Material 3 design with intuitive tabbed navigation
+- **Persistent Settings**: Saves your SSH connection settings locally
+
+### Quick Start
+
+```bash
+# Run the desktop application
+./gradlew desktop:run
+
+# Build native installer
+./gradlew desktop:packageDistributionForCurrentOS
+```
+
+For detailed documentation, see [desktop/README.md](desktop/README.md).
 
 ## Documentation
 
@@ -170,5 +195,6 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 
 - [x] Better templating system (currently stored in /resources/templates)
 - [x] Endpoint to send email
+- [x] Desktop application to manage templates and configs via SSH
 - [ ] Watch and reload configuration files and templates
 
