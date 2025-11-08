@@ -1,16 +1,9 @@
 import org.jetbrains.kotlin.gradle.internal.config.LanguageFeature
 
-val ktor_version: String by project
-val kotlin_version: String by project
-val kotlin_coroutines: String by project
-val logback_version: String by project
-val koin_ktor_version: String by project
-val kotlinx_serialization_version: String by project
-
 plugins {
-    kotlin("jvm") version "2.1.0"
-    id("io.ktor.plugin") version "3.0.1"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.ktor)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 group = "com.vandeas"
@@ -50,40 +43,42 @@ repositories {
 }
 
 dependencies {
-    implementation("io.ktor:ktor-server-core")
-    implementation("io.ktor:ktor-server-cors")
-    implementation("io.ktor:ktor-server-content-negotiation")
-    implementation("io.ktor:ktor-serialization-kotlinx-json")
-    implementation("io.ktor:ktor-server-call-logging")
-    implementation("io.ktor:ktor-server-netty")
-    implementation("io.ktor:ktor-server-mustache")
+    implementation(project(":hermes-shared"))
 
-    implementation("io.ktor:ktor-client-okhttp")
-    implementation("io.ktor:ktor-client-core")
-    implementation("io.ktor:ktor-client-content-negotiation")
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cors)
+    implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.ktor.server.call.logging)
+    implementation(libs.ktor.server.netty)
+    implementation(libs.ktor.server.mustache)
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines")
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.content.negotiation)
 
-    implementation("com.icure:kerberus:1.1.5")
-    implementation("com.icure.kryptom:kryptom:1.3.0")
+    implementation(libs.kotlinx.coroutines.core)
 
-    implementation("io.github.reactivecircus.cache4k:cache4k:0.13.0")
+    implementation(libs.kerberus)
+    implementation(libs.kryptom)
 
-    implementation("io.insert-koin:koin-ktor:$koin_ktor_version")
-    implementation("io.insert-koin:koin-logger-slf4j:$koin_ktor_version")
+    implementation(libs.cache4k)
 
-    implementation("ch.qos.logback:logback-classic:$logback_version")
+    implementation(libs.koin.ktor)
+    implementation(libs.koin.logger.slf4j)
 
-    implementation("com.resend:resend-java:3.1.0")
+    implementation(libs.logback.classic)
 
-    implementation("io.github.irgaly.kfswatch:kfswatch:1.3.0")
+    implementation(libs.resend.java)
 
-    implementation("net.pwall.mustache:kotlin-mustache:0.12")
+    implementation(libs.kfswatch)
 
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinx_serialization_version")
+    implementation(libs.kotlin.mustache)
 
-    implementation("com.sun.mail:javax.mail:1.6.2")
+    implementation(libs.kotlinx.serialization.json)
 
-    testImplementation("io.ktor:ktor-server-test-host")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+    implementation(libs.javax.mail)
+
+    testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.kotlin.test.junit)
 }
