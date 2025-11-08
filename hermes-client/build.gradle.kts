@@ -6,10 +6,6 @@ plugins {
 group = "com.vandeas"
 version = "1.2.1"
 
-repositories {
-    mavenCentral()
-}
-
 kotlin {
     jvm()
     
@@ -17,11 +13,11 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(project(":hermes-shared"))
-                implementation("io.ktor:ktor-client-core:3.0.1")
-                implementation("io.ktor:ktor-client-content-negotiation:3.0.1")
-                implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.1")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+                implementation(libs.ktor.client.core)
+                implementation(libs.ktor.client.content.negotiation)
+                implementation(libs.ktor.serialization.kotlinx.json)
+                implementation(libs.kotlinx.serialization.json)
+                implementation(libs.kotlinx.coroutines.core)
             }
         }
         val commonTest by getting {
