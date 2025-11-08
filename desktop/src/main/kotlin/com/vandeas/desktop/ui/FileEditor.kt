@@ -1,8 +1,6 @@
 package com.vandeas.desktop.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
@@ -61,9 +59,9 @@ fun FileEditor(
                         Text("Save")
                     }
                 }
-                
-                Divider()
-                
+
+                HorizontalDivider()
+
                 // Editor
                 OutlinedTextField(
                     value = editedContent,

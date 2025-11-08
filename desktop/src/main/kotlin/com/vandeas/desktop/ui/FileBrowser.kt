@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,9 +38,9 @@ fun FileBrowser(
             ) {
                 IconButton(
                     onClick = { viewModel.navigateUp() },
-                    enabled = viewModel.currentPath.isNotEmpty()
+                    enabled = viewModel.currentPath != ""
                 ) {
-                    Icon(Icons.Default.ArrowBack, "Go up")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Go up")
                 }
                 
                 IconButton(onClick = { viewModel.loadFiles(viewModel.currentPath) }) {
@@ -51,16 +52,16 @@ fun FileBrowser(
                 }
             }
             
-            Divider()
-            
+            HorizontalDivider()
+
             // Current path
-            if (viewModel.currentPath.isNotEmpty()) {
+            if (viewModel.currentPath != "") {
                 Text(
                     text = viewModel.currentPath,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(8.dp)
                 )
-                Divider()
+                HorizontalDivider()
             }
             
             // File list

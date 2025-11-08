@@ -35,5 +35,8 @@ out/
 ### VS Code ###
 .vscode/
 
+.kotlin
+.bruno
+
 ### TEST
 /scratch
