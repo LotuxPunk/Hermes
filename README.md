@@ -7,6 +7,7 @@ Mailer micro-service for vandeas
 
 - [Environment Variables](#environment-variables)
 - [Desktop Application](#desktop-application)
+- [Client Library](#client-library)
 - [Documentation](#documentation)
   - [Supported Mail Providers](#supported-mail-providers)
   - [Contact Form](#contact-form)
@@ -58,6 +59,43 @@ Hermes now includes a **Compose Multiplatform desktop application** for managing
 ```
 
 For detailed documentation, see [desktop/README.md](desktop/README.md).
+
+## Client Library
+
+Hermes now includes a **Kotlin Multiplatform client library** for easy integration with your applications!
+
+### Features
+
+- 🔄 **Kotlin Multiplatform**: Works on JVM and other Kotlin targets
+- 📦 **Shared DTOs**: Type-safe data classes shared between server and client
+- 🔌 **Flexible HTTP Client**: Use your own Ktor HTTP client or let the library create one
+- ⚡ **Coroutines**: Full async/await support with Kotlin coroutines
+
+### Quick Start
+
+```kotlin
+// Add the dependency
+dependencies {
+    implementation(project(":hermes-client"))
+}
+
+// Create and use the client
+val client = HermesClient(
+    HermesClientConfig(baseUrl = "https://your-hermes-instance.com")
+)
+
+val result = client.sendMail(
+    MailInput(
+        id = "your-mail-config-id",
+        email = "recipient@example.com",
+        attributes = mapOf("name" to "John", "code" to "ABC123")
+    )
+)
+
+client.close()
+```
+
+For detailed documentation, see [hermes-client/README.md](hermes-client/README.md).
 
 ## Documentation
 
@@ -196,5 +234,6 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 - [x] Better templating system (currently stored in /resources/templates)
 - [x] Endpoint to send email
 - [x] Desktop application to manage templates and configs via SSH
+- [x] Kotlin Multiplatform client library
 - [ ] Watch and reload configuration files and templates
 
