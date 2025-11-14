@@ -1,0 +1,83 @@
+[versions]
+kotlin = "2.2.21"
+ktor = "3.3.2"
+kotlinCoroutines = "1.10.2"
+logback = "1.4.12"
+koinKtor = "3.5.6"
+kotlinxSerialization = "1.7.1"
+kerberus = "1.1.5"
+kryptom = "1.3.0"
+cache4k = "0.13.0"
+kfswatch = "1.3.0"
+kotlinMustache = "0.12"
+javaxMail = "1.6.2"
+resend = "3.1.0"
+sshj = "0.38.0"
+compose = "1.9.3"
+compose-material = "1.9.0"
+kotlinLogging = "5.1.0"
+
+[libraries]
+# Kotlin
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+
+# Ktor Server
+ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
+ktor-server-cors = { module = "io.ktor:ktor-server-cors", version.ref = "ktor" }
+ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-server-call-logging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktor" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
+ktor-server-mustache = { module = "io.ktor:ktor-server-mustache", version.ref = "ktor" }
+ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
+
+# Ktor Client
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+
+# Coroutines
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinCoroutines" }
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinCoroutines" }
+
+# Serialization
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+# Encryption & Security
+kerberus = { module = "com.icure:kerberus", version.ref = "kerberus" }
+kryptom = { module = "com.icure.kryptom:kryptom", version.ref = "kryptom" }
+
+# Caching
+cache4k = { module = "io.github.reactivecircus.cache4k:cache4k", version.ref = "cache4k" }
+
+# Dependency Injection
+koin-ktor = { module = "io.insert-koin:koin-ktor", version.ref = "koinKtor" }
+koin-logger-slf4j = { module = "io.insert-koin:koin-logger-slf4j", version.ref = "koinKtor" }
+
+# Logging
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+kotlin-logging-jvm = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlinLogging" }
+
+# Email
+resend-java = { module = "com.resend:resend-java", version.ref = "resend" }
+javax-mail = { module = "com.sun.mail:javax.mail", version.ref = "javaxMail" }
+
+# File Watching
+kfswatch = { module = "io.github.irgaly.kfswatch:kfswatch", version.ref = "kfswatch" }
+
+# Templating
+kotlin-mustache = { module = "net.pwall.mustache:kotlin-mustache", version.ref = "kotlinMustache" }
+
+# SSH Client
+sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
+
+# Compose
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material" }
+compose-materialIconsExtended = { module = "org.jetbrains.compose.material.icons:material-icons-extended", version = "1.7.3" }
+
+[bundles]
+ktor-server = ["ktor-server-core", "ktor-server-cors", "ktor-server-content-negotiation", "ktor-serialization-kotlinx-json", "ktor-server-call-logging", "ktor-server-netty", "ktor-server-mustache"]
+ktor-client = ["ktor-client-core", "ktor-client-okhttp", "ktor-client-content-negotiation"]
+koin = ["koin-ktor", "koin-logger-slf4j"]
+serialization = ["kotlinx-serialization-json"]
+

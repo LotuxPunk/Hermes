@@ -50,40 +50,21 @@ repositories {
 }
 
 dependencies {
-    implementation("io.ktor:ktor-server-core")
-    implementation("io.ktor:ktor-server-cors")
-    implementation("io.ktor:ktor-server-content-negotiation")
-    implementation("io.ktor:ktor-serialization-kotlinx-json")
-    implementation("io.ktor:ktor-server-call-logging")
-    implementation("io.ktor:ktor-server-netty")
-    implementation("io.ktor:ktor-server-mustache")
+    implementation(libs.bundles.ktor.server)
+    implementation(libs.bundles.ktor.client)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kerberus)
+    implementation(libs.kryptom)
+    implementation(libs.cache4k)
+    implementation(libs.bundles.koin)
+    implementation(libs.logback.classic)
+    implementation(libs.resend.java)
+    implementation(libs.kfswatch)
+    implementation(libs.kotlin.mustache)
+    implementation(libs.bundles.serialization)
+    implementation(libs.javax.mail)
 
-    implementation("io.ktor:ktor-client-okhttp")
-    implementation("io.ktor:ktor-client-core")
-    implementation("io.ktor:ktor-client-content-negotiation")
-
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines")
-
-    implementation("com.icure:kerberus:1.1.5")
-    implementation("com.icure.kryptom:kryptom:1.3.0")
-
-    implementation("io.github.reactivecircus.cache4k:cache4k:0.13.0")
-
-    implementation("io.insert-koin:koin-ktor:$koin_ktor_version")
-    implementation("io.insert-koin:koin-logger-slf4j:$koin_ktor_version")
-
-    implementation("ch.qos.logback:logback-classic:$logback_version")
-
-    implementation("com.resend:resend-java:3.1.0")
-
-    implementation("io.github.irgaly.kfswatch:kfswatch:1.3.0")
-
-    implementation("net.pwall.mustache:kotlin-mustache:0.12")
-
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinx_serialization_version")
-
-    implementation("com.sun.mail:javax.mail:1.6.2")
-
-    testImplementation("io.ktor:ktor-server-test-host")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+    testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.kotlin.test.junit)
 }
+

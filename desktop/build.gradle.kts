@@ -23,36 +23,36 @@ repositories {
 dependencies {
     // Compose Desktop
     implementation(compose.desktop.currentOs)
-    implementation(compose.material3)
     implementation(compose.materialIconsExtended)
-    
+    implementation(compose.materialIconsExtended)
+
     // SSH Client
-    implementation("com.hierynomus:sshj:0.38.0")
-    
+    implementation(libs.sshj)
+
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:$kotlin_coroutines")
-    
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.swing)
+
     // Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinx_serialization_version")
-    
+    implementation(libs.bundles.serialization)
+
     // Logging
-    implementation("ch.qos.logback:logback-classic:1.4.12")
-    implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
+    implementation(libs.logback.classic)
+    implementation(libs.kotlin.logging.jvm)
 }
 
 compose.desktop {
     application {
         mainClass = "com.vandeas.desktop.MainKt"
-        
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Hermes Desktop"
             packageVersion = "1.0.0"
-            
+
             description = "Desktop application for managing Hermes mail templates and configurations via SSH"
             vendor = "Vandeas"
-            
+
             macOS {
                 iconFile.set(project.file("src/main/resources/icon.icns"))
             }
@@ -65,3 +65,4 @@ compose.desktop {
         }
     }
 }
+
