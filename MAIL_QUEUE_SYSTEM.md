@@ -8,7 +8,7 @@ Key capabilities:
 1. Queue emails asynchronously with immediate return.
 2. Rate limiting (configurable per second throughput).
 3. Reference tracking (each queued mail gets a UUID reference).
-4. Automatic retries for temporary failures with exponential backoff.
+4. Automatic retries for temporary failures with exponential backoff (handled by the queue processor).
 5. Failure categorization: permanent (bounced) vs temporary (retryable).
 
 ## Configuration
@@ -77,7 +77,12 @@ val result = mailer.sendEmail(
 If `USE_MAIL_QUEUE=false`, `sendEmail` executes immediately:
 ```kotlin
 val mailer = config.toMailer() // ResendMailer or SMTPMailer
-val result = mailer.sendEmail(...)
+val result = mailer.sendEmail(
+    to = "user@example.com",
+    from = "noreply@yourapp.com",
+    subject = "Hello",
+    content = "<p>Body</p>"
+)
 ```
 
 ### Tracking Results
@@ -111,14 +116,24 @@ Token bucket algorithm:
 - Each processed mail consumes one token.
 - If empty, processor waits until refill.
 
-## Retry Strategy
-Temporary failures retried up to 3 times (1s, 2s, 3s backoff). Permanent failures (bounces / validation) are not retried.
+## Retry Handling
+
+- Direct mailers (`ResendMailer`, `SMTPMailer`):
+  - Use `sendEmailsWithRetry` to perform retry logic in-process.
+- Queued mailers (`QueuedResendMailer`, `QueuedSMTPMailer`):
+  - Retries are managed by the queue processor automatically.
+  - Calling `sendEmailsWithRetry` on a queued mailer is unnecessary; it delegates to a single-pass `sendEmails` to avoid double retries.
 
 ## Migration Guide
 No code changes needed:
 ```kotlin
 val mailer = config.toMailer()
-mailer.sendEmail(...)
+mailer.sendEmail(
+    to = "user@example.com",
+    from = "noreply@yourapp.com",
+    subject = "Subject",
+    content = "<p>Body</p>"
+)
 ```
 
 Queue behavior is controlled via environment variable only.
@@ -190,15 +205,15 @@ class RateLimitedMailQueue(
 ```
 
 ### Queued Mailers
-```kotlin
-class QueuedResendMailer(...): AbstractQueuedMailer(...)
-class QueuedSMTPMailer(...): AbstractQueuedMailer(...)
+```text
+QueuedResendMailer: extends AbstractQueuedMailer (uses ResendMailer underneath)
+QueuedSMTPMailer: extends AbstractQueuedMailer (uses SMTPMailer underneath)
 ```
 
 ### Direct Mailers
-```kotlin
-class ResendMailer(...): Mailer
-class SMTPMailer(...): Mailer
+```text
+ResendMailer: implements Mailer
+SMTPMailer: implements Mailer
 ```
 
 ## Concurrency Model

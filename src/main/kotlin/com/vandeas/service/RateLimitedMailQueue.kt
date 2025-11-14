@@ -41,6 +41,9 @@ class RateLimitedMailQueue(
     // Tracking
     private val sentCount = AtomicLong(0)
     private val queuedCount = AtomicLong(0)
+    
+    // Track retry jobs for proper shutdown and error handling
+    private val retryJobs = mutableListOf<Job>()
 
     private val interval = 1.seconds
     private val tokensAvailable = AtomicInteger(rateLimit)
@@ -113,9 +116,9 @@ class RateLimitedMailQueue(
         while (true) {
             refillTokens()
 
-            // Try to atomically decrement the token count
-            val current = tokensAvailable.get()
-            if (current > 0 && tokensAvailable.compareAndSet(current, current - 1)) {
+            // Atomically decrement if a token is available
+            val previous = tokensAvailable.getAndUpdate { cur -> if (cur > 0) cur - 1 else cur }
+            if (previous > 0) {
                 return
             }
 
@@ -127,6 +130,13 @@ class RateLimitedMailQueue(
             if (timeUntilRefill > 0) {
                 logger.debug("Rate limit reached, waiting ${timeUntilRefill}ms")
                 delay(timeUntilRefill)
+                
+                // After delay, refill tokens and try immediately to avoid extra loop iteration
+                refillTokens()
+                val afterDelay = tokensAvailable.getAndUpdate { cur -> if (cur > 0) cur - 1 else cur }
+                if (afterDelay > 0) {
+                    return
+                }
             }
         }
     }
@@ -181,10 +191,30 @@ class RateLimitedMailQueue(
                     // Emit intermediate result to notify consumers about the retry attempt
                     _results.emit(QueuedMailResult(item.reference, result))
 
-                    scope.launch {
-                        delay(retryDelay)
-                        val retryItem = item.copy(retryCount = item.retryCount + 1)
-                        enqueue(retryItem)
+                    // Track retry job for proper error handling and shutdown
+                    val retryJob = scope.launch {
+                        try {
+                            delay(retryDelay)
+                            val retryItem = item.copy(retryCount = item.retryCount + 1)
+                            enqueue(retryItem)
+                        } catch (e: CancellationException) {
+                            logger.info("Retry cancelled for ${item.mail.to} (ref: ${item.reference})")
+                            throw e
+                        } catch (e: Exception) {
+                            logger.error("Error re-enqueueing mail ${item.reference}: ${e.message}", e)
+                            // Emit final failure result if re-enqueue fails
+                            _results.emit(
+                                QueuedMailResult(
+                                    item.reference,
+                                    SendOperationResult(failed = listOf(item.mail.to))
+                                )
+                            )
+                        }
+                    }
+                    synchronized(retryJobs) {
+                        retryJobs.add(retryJob)
+                        // Clean up completed jobs to prevent memory leak
+                        retryJobs.removeAll { it.isCompleted }
                     }
                 }
 

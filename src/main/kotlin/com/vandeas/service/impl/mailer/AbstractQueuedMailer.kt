@@ -5,7 +5,6 @@ import com.vandeas.entities.MailQueueItem
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.service.Mailer
 import com.vandeas.service.RateLimitedMailQueue
-import com.vandeas.utils.Constants
 import io.ktor.util.logging.*
 
 /**
@@ -17,7 +16,7 @@ import io.ktor.util.logging.*
  */
 abstract class AbstractQueuedMailer(
     protected val internalMailer: Mailer,
-    rateLimit: Int = Constants.mailRateLimit
+    rateLimit: Int = com.vandeas.utils.Constants.mailRateLimit
 ) : Mailer {
 
     protected abstract val loggerName: String
@@ -58,6 +57,19 @@ abstract class AbstractQueuedMailer(
         return SendOperationResult(
             sent = mails.map { it.to }
         )
+    }
+
+    /**
+     * Queued mailers handle retries internally via the queue processor.
+     * To avoid double retries, this override performs a single enqueue pass.
+     */
+    override suspend fun sendEmailsWithRetry(
+        mails: List<Mail>,
+        maxRetries: Int,
+        retryDelayMs: Long
+    ): SendOperationResult {
+        logger.debug("sendEmailsWithRetry called on queued mailer; delegating to single-pass enqueue to avoid double retries")
+        return sendEmails(mails)
     }
 
     /**

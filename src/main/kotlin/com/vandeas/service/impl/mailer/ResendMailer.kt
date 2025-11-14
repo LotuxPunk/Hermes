@@ -82,6 +82,13 @@ class ResendMailer(
                     )
                 }
             }
+        } catch (e: Exception) {
+            // Catch-all for unexpected errors (network issues, timeouts, etc.)
+            logger.error("Unexpected error while sending email to $to: ${e.message}")
+            SendOperationResult(
+                temporary = listOf(to),
+                failed = listOf(to)
+            )
         }
     }
 
