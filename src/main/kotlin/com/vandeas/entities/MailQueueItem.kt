@@ -8,7 +8,7 @@ import java.util.UUID
  *
  * @property reference Unique identifier for tracking this mail operation
  * @property mail The mail to be sent
- * @property priority Priority of the mail (higher values = higher priority)
+ * @property priority Priority of the mail (reserved for future use; currently not used - queue is FIFO)
  * @property retryCount Number of times this mail has been retried
  * @property maxRetries Maximum number of retry attempts for temporary failures
  */

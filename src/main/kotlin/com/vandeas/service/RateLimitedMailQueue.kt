@@ -30,7 +30,8 @@ class RateLimitedMailQueue(
 ) {
     private val logger = KtorSimpleLogger("com.vandeas.service.RateLimitedMailQueue")
 
-    // Priority queue using a channel - items with higher priority are processed first
+    // FIFO queue - items are processed in the order they are enqueued
+    // Note: MailQueueItem has a priority field for future enhancement, but it's currently unused
     private val queue = Channel<MailQueueItem>(Channel.UNLIMITED)
 
     // Results flow for external consumers
