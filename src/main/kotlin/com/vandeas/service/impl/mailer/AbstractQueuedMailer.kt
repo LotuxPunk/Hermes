@@ -5,6 +5,7 @@ import com.vandeas.entities.MailQueueItem
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.service.Mailer
 import com.vandeas.service.RateLimitedMailQueue
+import com.vandeas.utils.Constants
 import io.ktor.util.logging.*
 
 /**
@@ -16,7 +17,7 @@ import io.ktor.util.logging.*
  */
 abstract class AbstractQueuedMailer(
     protected val internalMailer: Mailer,
-    rateLimit: Int = System.getenv("MAIL_RATE_LIMIT")?.toIntOrNull() ?: 10
+    rateLimit: Int = Constants.mailRateLimit
 ) : Mailer {
 
     protected abstract val loggerName: String

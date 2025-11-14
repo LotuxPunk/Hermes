@@ -3,6 +3,7 @@ package com.vandeas.service
 import com.vandeas.entities.MailQueueItem
 import com.vandeas.entities.QueuedMailResult
 import com.vandeas.entities.SendOperationResult
+import com.vandeas.utils.Constants
 import io.ktor.util.logging.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -20,7 +21,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class RateLimitedMailQueue(
     private val mailer: Mailer,
-    private val rateLimit: Int = System.getenv("MAIL_RATE_LIMIT")?.toIntOrNull() ?: 10,
+    private val rateLimit: Int = Constants.mailRateLimit,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
     private val logger = KtorSimpleLogger("com.vandeas.service.RateLimitedMailQueue")

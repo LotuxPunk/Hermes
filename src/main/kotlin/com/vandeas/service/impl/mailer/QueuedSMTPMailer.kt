@@ -1,17 +1,15 @@
 package com.vandeas.service.impl.mailer
 
 /**
- * Queued SMTP mailer. suspend sendEmail enqueues mail immediately.
+ * Queued SMTP mailer with rate limiting.
  */
 class QueuedSMTPMailer(
     username: String,
     password: String,
     host: String,
-    port: Int = 587,
-    rateLimit: Int = System.getenv("MAIL_RATE_LIMIT")?.toIntOrNull() ?: 10
+    port: Int = 587
 ) : AbstractQueuedMailer(
-    internalMailer = SMTPMailer(username, password, host, port),
-    rateLimit = rateLimit
+    internalMailer = SMTPMailer(username, password, host, port)
 ) {
     override val loggerName = "com.vandeas.service.impl.mailer.QueuedSMTPMailer"
 }

@@ -1,14 +1,12 @@
 package com.vandeas.service.impl.mailer
 
 /**
- * Queued Resend mailer. sendEmail is suspend and enqueues instantly.
+ * Queued Resend mailer with rate limiting.
  */
 class QueuedResendMailer(
-    apiKey: String,
-    rateLimit: Int = System.getenv("MAIL_RATE_LIMIT")?.toIntOrNull() ?: 10
+    apiKey: String
 ) : AbstractQueuedMailer(
-    internalMailer = ResendMailer(apiKey),
-    rateLimit = rateLimit
+    internalMailer = ResendMailer(apiKey)
 ) {
     override val loggerName = "com.vandeas.service.impl.mailer.QueuedResendMailer"
 }
