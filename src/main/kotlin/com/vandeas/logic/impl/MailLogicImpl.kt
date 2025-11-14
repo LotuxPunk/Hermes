@@ -63,7 +63,7 @@ class MailLogicImpl(
         val subject = subjectTemplate.processToString(mapOf("form" to form))
         val content = contentTemplate.processToString(mapOf("form" to form))
 
-        return mailer.sendEmails(
+        return mailer.sendEmailsWithRetry(
             mails = form.destinations.takeIf { it.isNotEmpty() }?.map { destination ->
                 Mail(
                     from = config.sender,
@@ -78,7 +78,9 @@ class MailLogicImpl(
                     subject = subject,
                     content = content
                 )
-            )
+            ),
+            maxRetries = 3,
+            retryDelayMs = 1000L
         )
     }
 
@@ -120,7 +122,7 @@ class MailLogicImpl(
 
         val sendResults = mailInputsByIdentifier.map { (identifier, mailInputs) ->
             async {
-                mailerByIdentifier[identifier]!!.sendEmails(
+                mailerByIdentifier[identifier]!!.sendEmailsWithRetry(
                     mails = mailInputs.map { mailInput ->
                         val contentTemplate = Template.parse(mailConfigHandler.getTemplate(mailInput.id))
                         val subjectTemplate = Template.parse(mailConfigHandler.get(mailInput.id).subjectTemplate)
@@ -131,14 +133,18 @@ class MailLogicImpl(
                             subject = subjectTemplate.processToString(mailInput.attributes),
                             content = contentTemplate.processToString(mailInput.attributes)
                         )
-                    }
+                    },
+                    maxRetries = 3,
+                    retryDelayMs = 1000L
                 )
             }
         }.awaitAll()
 
         SendOperationResult(
             sent = sendResults.flatMap { it.sent },
-            failed = sendResults.flatMap { it.failed }
+            failed = sendResults.flatMap { it.failed },
+            bounced = sendResults.flatMap { it.bounced },
+            temporary = sendResults.flatMap { it.temporary }
         )
     }
 }
