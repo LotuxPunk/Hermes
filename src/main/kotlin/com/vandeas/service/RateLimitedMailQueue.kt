@@ -178,6 +178,9 @@ class RateLimitedMailQueue(
                     val retryDelay = (1000L * (item.retryCount + 1)).milliseconds
                     logger.warn("Temporary failure for ${item.mail.to}, retrying in $retryDelay (attempt ${item.retryCount + 1}/${item.maxRetries})")
 
+                    // Emit intermediate result to notify consumers about the retry attempt
+                    _results.emit(QueuedMailResult(item.reference, result))
+
                     scope.launch {
                         delay(retryDelay)
                         val retryItem = item.copy(retryCount = item.retryCount + 1)
