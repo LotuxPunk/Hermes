@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.vandeas"
-version = "1.2.1"
+version = "2.0.0"
 
 application {
     mainClass.set("com.vandeas.ApplicationKt")
