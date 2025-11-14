@@ -9,8 +9,12 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 
 /**
  * A rate-limited mail queue that processes emails with configurable throughput.
@@ -37,10 +41,9 @@ class RateLimitedMailQueue(
     private val sentCount = AtomicLong(0)
     private val queuedCount = AtomicLong(0)
 
-    // Rate limiting state
-    private val intervalMs = 1000L // 1 second
-    private var tokensAvailable = rateLimit
-    private var lastRefillTime = System.currentTimeMillis()
+    private val interval = 1.seconds
+    private val tokensAvailable = AtomicInteger(rateLimit)
+    private val lastRefillTime = AtomicLong(System.currentTimeMillis())
 
     init {
         logger.info("Initializing RateLimitedMailQueue with rate limit: $rateLimit emails/second")
@@ -83,33 +86,42 @@ class RateLimitedMailQueue(
 
     /**
      * Refill rate limit tokens based on time elapsed.
+     * Thread-safe implementation using atomic operations.
      */
+    @OptIn(ExperimentalTime::class)
     private fun refillTokens() {
-        val now = System.currentTimeMillis()
-        val timeElapsed = now - lastRefillTime
+        val now = Clock.System.now().toEpochMilliseconds()
+        val lastRefill = lastRefillTime.get()
+        val timeElapsed = now - lastRefill
 
-        if (timeElapsed >= intervalMs) {
-            tokensAvailable = rateLimit
-            lastRefillTime = now
-            logger.debug("Refilled tokens: $tokensAvailable")
+        if (timeElapsed >= interval.inWholeMilliseconds) {
+            // Atomic compare-and-set to avoid race conditions
+            if (lastRefillTime.compareAndSet(lastRefill, now)) {
+                tokensAvailable.set(rateLimit)
+                logger.debug("Refilled tokens: $rateLimit")
+            }
         }
     }
 
     /**
      * Check if we can send an email based on rate limit.
+     * Thread-safe implementation using atomic operations.
      */
+    @OptIn(ExperimentalTime::class)
     private suspend fun acquireToken() {
         while (true) {
             refillTokens()
 
-            if (tokensAvailable > 0) {
-                tokensAvailable--
+            // Try to atomically decrement the token count
+            val current = tokensAvailable.get()
+            if (current > 0 && tokensAvailable.compareAndSet(current, current - 1)) {
                 return
             }
 
             // Calculate how long to wait until next refill
-            val now = System.currentTimeMillis()
-            val timeUntilRefill = intervalMs - (now - lastRefillTime)
+            val now = Clock.System.now().toEpochMilliseconds()
+            val lastRefill = lastRefillTime.get()
+            val timeUntilRefill = interval.inWholeMilliseconds - (now - lastRefill)
 
             if (timeUntilRefill > 0) {
                 logger.debug("Rate limit reached, waiting ${timeUntilRefill}ms")
