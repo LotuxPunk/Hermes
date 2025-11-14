@@ -5,6 +5,7 @@ import com.vandeas.service.impl.mailer.QueuedResendMailer
 import com.vandeas.service.impl.mailer.QueuedSMTPMailer
 import com.vandeas.service.impl.mailer.ResendMailer
 import com.vandeas.service.impl.mailer.SMTPMailer
+import com.vandeas.utils.Constants
 import kotlinx.serialization.Serializable
 
 const val RESEND_SERIAL_NAME = "RESEND"
@@ -29,10 +30,7 @@ abstract class ResendProvider: Config {
     protected abstract val apiKey: String
 
     override fun toMailer(): Mailer {
-        // Check if queue-based sending is enabled via environment variable
-        val useQueue = System.getenv("USE_MAIL_QUEUE")?.toBoolean() ?: true
-
-        return if (useQueue) {
+        return if (Constants.useMailQueue) {
             QueuedResendMailer(apiKey = apiKey)
         } else {
             ResendMailer(apiKey = apiKey)
@@ -51,10 +49,7 @@ abstract class SMTPProvider: Config {
     protected abstract val smtpPort: Int
 
     override fun toMailer(): Mailer {
-        // Check if queue-based sending is enabled via environment variable
-        val useQueue = System.getenv("USE_MAIL_QUEUE")?.toBoolean() ?: true
-
-        return if (useQueue) {
+        return if (Constants.useMailQueue) {
             QueuedSMTPMailer(
                 username = username,
                 password = password,
