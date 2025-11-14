@@ -1,7 +1,5 @@
 package com.vandeas.dto.configs
 
-import com.vandeas.service.impl.mailer.ResendMailer
-import com.vandeas.service.impl.mailer.SMTPMailer
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

@@ -42,7 +42,7 @@ class SMTPMailer(
 			setFrom(InternetAddress(from))
 			addRecipient(Message.RecipientType.TO, InternetAddress(to))
 			this.subject = subject
-			setText(content)
+			setText(content, "utf-8", "html")
 		}
 		return try {
 			Transport.send(message)
