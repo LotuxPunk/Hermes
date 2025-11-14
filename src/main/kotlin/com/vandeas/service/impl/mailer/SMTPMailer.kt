@@ -57,20 +57,29 @@ class SMTPMailer(
             LOGGER.error("Failed to send email to $to")
             LOGGER.error("Error: ${e.message}")
 
-            // Check if it's a permanent failure (bounce)
-            val isPermanentFailure = e.validUnsentAddresses?.isNotEmpty() == true ||
-                    e.message?.contains("550", ignoreCase = true) == true || // Mailbox not found
-                    e.message?.contains("551", ignoreCase = true) == true || // User not local
-                    e.message?.contains("553", ignoreCase = true) == true    // Invalid address
+            // Check for permanent failures
+            // invalidAddresses: addresses that failed validation (permanent)
+            // SMTP 5xx codes (except 421): permanent failures
+            val hasInvalidAddresses = e.invalidAddresses?.isNotEmpty() == true
+            val isPermanentSMTPError = e.message?.let { msg ->
+                msg.contains("550", ignoreCase = true) ||  // Mailbox not found
+                msg.contains("551", ignoreCase = true) ||  // User not local
+                msg.contains("552", ignoreCase = true) ||  // Mailbox full
+                msg.contains("553", ignoreCase = true) ||  // Invalid address
+                msg.contains("554", ignoreCase = true)     // Transaction failed
+            } ?: false
+
+            val isPermanentFailure = hasInvalidAddresses || isPermanentSMTPError
 
             if (isPermanentFailure) {
-                LOGGER.warn("Email bounced (permanent failure): $to")
+                LOGGER.warn("Email bounced (permanent failure): $to - Invalid addresses: ${e.invalidAddresses?.size ?: 0}")
                 SendOperationResult(
                     bounced = listOf(to),
                     failed = listOf(to)
                 )
             } else {
-                LOGGER.warn("Temporary email failure: $to")
+                // Temporary failures: validUnsentAddresses (validated but not sent), 4xx codes, etc.
+                LOGGER.warn("Temporary email failure: $to - Valid unsent: ${e.validUnsentAddresses?.size ?: 0}")
                 SendOperationResult(
                     temporary = listOf(to),
                     failed = listOf(to)
