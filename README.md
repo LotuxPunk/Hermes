@@ -43,7 +43,7 @@ See [.env.example](.env.example) for a complete configuration template.
 
 ### Mail Queue System
 
-Hermes includes a built-in queue system with rate limiting for email sending. See [MAIL_QUEUE_SYSTEM.md](MAIL_QUEUE_SYSTEM.md) for detailed documentation.
+Hermes includes a built-in queue system with rate limiting for email sending. See [MAIL_QUEUE_SYSTEM.md](docs/MAIL_QUEUE_SYSTEM.md) for detailed documentation.
 
 ## Desktop Application
 
