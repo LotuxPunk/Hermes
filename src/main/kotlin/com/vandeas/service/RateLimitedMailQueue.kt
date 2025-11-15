@@ -21,11 +21,13 @@ import kotlin.time.ExperimentalTime
  *
  * @property mailer The underlying mailer implementation to use for sending
  * @property rateLimit Maximum number of emails to send per second (default: 10)
+ * @property workerCount Number of concurrent workers to process emails (default: 5)
  * @property scope Coroutine scope for queue processing
  */
 class RateLimitedMailQueue(
     private val mailer: Mailer,
     private val rateLimit: Int = Constants.mailRateLimit,
+    private val workerCount: Int = 5,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
     private val logger = KtorSimpleLogger("com.vandeas.service.RateLimitedMailQueue")
@@ -41,17 +43,19 @@ class RateLimitedMailQueue(
     // Tracking
     private val sentCount = AtomicLong(0)
     private val queuedCount = AtomicLong(0)
-    
-    // Track retry jobs for proper shutdown and error handling
+    private val activeWorkers = AtomicInteger(0)
+
+    // Track retry jobs and worker jobs for proper shutdown and error handling
     private val retryJobs = mutableListOf<Job>()
+    private val workerJobs = mutableListOf<Job>()
 
     private val interval = 1.seconds
     private val tokensAvailable = AtomicInteger(rateLimit)
     private val lastRefillTime = AtomicLong(System.currentTimeMillis())
 
     init {
-        logger.info("Initializing RateLimitedMailQueue with rate limit: $rateLimit emails/second")
-        startQueueProcessor()
+        logger.info("Initializing RateLimitedMailQueue with rate limit: $rateLimit emails/second, workers: $workerCount")
+        startWorkerPool()
     }
 
     /**
@@ -84,9 +88,15 @@ class RateLimitedMailQueue(
         return QueueStats(
             queued = queuedCount.get(),
             sent = sentCount.get(),
+            activeWorkers = activeWorkers.get(),
             rateLimit = rateLimit
         )
     }
+
+    /**
+     * Get the number of currently active workers.
+     */
+    fun getActiveWorkers(): Int = activeWorkers.get()
 
     /**
      * Refill rate limit tokens based on time elapsed.
@@ -142,31 +152,56 @@ class RateLimitedMailQueue(
     }
 
     /**
-     * Start the background queue processor.
+     * Start a pool of worker coroutines to process the queue concurrently.
+     * Each worker runs independently and processes items from the shared queue.
      */
-    private fun startQueueProcessor() {
-        scope.launch {
-            logger.info("Queue processor started")
+    private fun startWorkerPool() {
+        logger.info("Starting worker pool with $workerCount workers")
 
-            try {
-                for (item in queue) {
-                    processMailItem(item)
+        repeat(workerCount) { workerId ->
+            val job = scope.launch {
+                logger.info("Worker #$workerId started")
+                activeWorkers.incrementAndGet()
+
+                try {
+                    for (item in queue) {
+                        try {
+                            processMailItem(item, workerId)
+                        } catch (e: CancellationException) {
+                            logger.info("Worker #$workerId cancelled while processing")
+                            throw e
+                        } catch (e: Exception) {
+                            logger.error("Worker #$workerId error processing item: ${e.message}", e)
+                            // Continue processing next items even if one fails
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    logger.info("Worker #$workerId cancelled")
+                    throw e
+                } finally {
+                    activeWorkers.decrementAndGet()
+                    logger.info("Worker #$workerId stopped")
                 }
-            } catch (e: Exception) {
-                logger.error("Queue processor error: ${e.message}", e)
+            }
+
+            synchronized(workerJobs) {
+                workerJobs.add(job)
             }
         }
+
+        logger.info("Worker pool started with $workerCount workers")
     }
 
     /**
      * Process a single mail item from the queue.
+     * @param workerId The ID of the worker processing this item (for logging)
      */
-    private suspend fun processMailItem(item: MailQueueItem) {
+    private suspend fun processMailItem(item: MailQueueItem, workerId: Int) {
         try {
             // Acquire rate limit token before sending
             acquireToken()
 
-            logger.debug("Processing mail with reference: ${item.reference}")
+            logger.debug("Worker #$workerId processing mail with reference: ${item.reference}")
 
             val result = mailer.sendEmail(
                 to = item.mail.to,
@@ -179,7 +214,7 @@ class RateLimitedMailQueue(
             when {
                 result.sent.isNotEmpty() -> {
                     sentCount.incrementAndGet()
-                    logger.info("Successfully sent mail to ${item.mail.to} (ref: ${item.reference})")
+                    logger.info("Worker #$workerId successfully sent mail to ${item.mail.to} (ref: ${item.reference})")
                     _results.emit(QueuedMailResult(item.reference, result))
                 }
 
@@ -246,6 +281,7 @@ class RateLimitedMailQueue(
     data class QueueStats(
         val queued: Long,
         val sent: Long,
+        val activeWorkers: Int,
         val rateLimit: Int
     )
 }
