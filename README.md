@@ -14,7 +14,6 @@ Mailer micro-service for vandeas
   - [Mail Config](#mail-config)
     - [Example of `MAIL_CONFIGS_FOLDER` Configuration Files](#example-of-mail_configs_folder-configuration-files)
   - [Mail Template](#mail-template)
-    - [Filename Requirements](#filename-requirements)
 - [API Reference](#api-reference)
   - [Send Contact Form Using Contact Form Configuration](#send-contact-form-using-contact-form-configuration)
     - [POST `/v1/mail/contact`](#post-v1mailcontact)
@@ -22,6 +21,9 @@ Mailer micro-service for vandeas
   - [Send Mail Using Mail Configuration](#send-mail-using-mail-configuration)
     - [POST `/v1/mail`](#post-v1mail)
     - [Body Parameters](#body-parameters-1)
+  - [Send Batch of Mails Using Mail Configurations](#send-batch-of-mails-using-mail-configurations)
+    - [POST `/v1/mail/batch`](#post-v1mailbatch)
+    - [Body Parameters](#body-parameters-2)
 - [Roadmap](#roadmap)
   - [Completed and Pending Features](#completed-and-pending-features)
 
@@ -33,7 +35,15 @@ To run this project, you will need to add the following environment variables
 - `CONTACT_FORM_CONFIGS_FOLDER`: An existing folder in your file system where the contact form configs will be stored.
 - `MAIL_CONFIGS_FOLDER`: An existing folder in your file system where the email configs will be stored.
 - `TEMPLATES_FOLDER`: An existing folder in your file system where the email templates will be stored.
-- `GOOGLE_RECAPTCHA_SECRET`: A Google ReCaptcha secret (required only when using forms).
+- `GOOGLE_RECAPTCHA_SECRET`: A Google ReCaptcha secret (required only when using Google ReCaptcha in contact forms).
+- `USE_MAIL_QUEUE`: (Optional, default: `true`) Enable queue-based email sending with rate limiting.
+- `MAIL_RATE_LIMIT`: (Optional, default: `10`) Maximum number of emails to send per second.
+
+See [.env.example](.env.example) for a complete configuration template.
+
+### Mail Queue System
+
+Hermes includes a built-in queue system with rate limiting for email sending. See [MAIL_QUEUE_SYSTEM.md](docs/MAIL_QUEUE_SYSTEM.md) for detailed documentation.
 
 ## Desktop Application
 
@@ -69,6 +79,10 @@ For detailed documentation, see [desktop/README.md](desktop/README.md).
 
 ### Contact Form
 
+Contact forms support captcha validation with the following providers:
+- **Google ReCaptcha** - Requires `GOOGLE_RECAPTCHA_SECRET` environment variable
+- **Kerberus** - Alternative captcha provider
+
 #### Example of `CONTACT_FORM_CONFIGS_FOLDER` configuration files
 
 **Resend-based config**
@@ -78,7 +92,7 @@ For detailed documentation, see [desktop/README.md](desktop/README.md).
     "dailyLimit": 10,
     "destination": "john@example.com",
     "sender": "doe@example.com",
-    "threshold": 0.5, // Recapthca score thresold
+    "threshold": 0.5, // ReCaptcha score threshold
     "lang": "fr", // ISO 639-1
     "subjectTemplate": "New mail from {{form.firstName}}",
     "provider": "RESEND",
@@ -93,7 +107,7 @@ For detailed documentation, see [desktop/README.md](desktop/README.md).
     "dailyLimit": 10,
     "destination": "john@example.com",
     "sender": "doe@example.com",
-    "threshold": 0.5, // Recapthca score thresold
+    "threshold": 0.5, // ReCaptcha score threshold
     "lang": "fr", // ISO 639-1
     "subjectTemplate": "New mail from {{form.firstName}}",
     "provider": "SMTP",
@@ -196,5 +210,6 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 - [x] Better templating system (currently stored in /resources/templates)
 - [x] Endpoint to send email
 - [x] Desktop application to manage templates and configs via SSH
+- [x] Queue system with rate limiting for email sending
 - [ ] Watch and reload configuration files and templates
 

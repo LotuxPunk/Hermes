@@ -1,14 +1,10 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
-val kotlin_version: String by project
-val kotlin_coroutines: String by project
-val kotlinx_serialization_version: String by project
-
 plugins {
-    kotlin("jvm") version "2.1.0"
-    id("org.jetbrains.compose") version "1.7.1"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.1.0"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.compose)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 group = "com.vandeas"

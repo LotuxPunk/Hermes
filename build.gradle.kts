@@ -1,20 +1,13 @@
 import org.jetbrains.kotlin.gradle.internal.config.LanguageFeature
 
-val ktor_version: String by project
-val kotlin_version: String by project
-val kotlin_coroutines: String by project
-val logback_version: String by project
-val koin_ktor_version: String by project
-val kotlinx_serialization_version: String by project
-
 plugins {
-    kotlin("jvm") version "2.1.0"
-    id("io.ktor.plugin") version "3.0.1"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.ktor)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 group = "com.vandeas"
-version = "1.2.1"
+version = "2.0.0"
 
 application {
     mainClass.set("com.vandeas.ApplicationKt")
