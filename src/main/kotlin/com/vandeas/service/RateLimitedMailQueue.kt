@@ -9,6 +9,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Clock
@@ -20,7 +21,7 @@ import kotlin.time.ExperimentalTime
  * A rate-limited mail queue that processes emails with configurable throughput.
  *
  * @property mailer The underlying mailer implementation to use for sending
- * @property rateLimit Maximum number of emails to send per second (default: 10)
+ * @property rateLimit Maximum number of emails to send per second
  * @property workerCount Number of concurrent workers to process emails (default: 5)
  * @property scope Coroutine scope for queue processing
  */
@@ -46,7 +47,7 @@ class RateLimitedMailQueue(
     private val activeWorkers = AtomicInteger(0)
 
     // Track retry jobs and worker jobs for proper shutdown and error handling
-    private val retryJobs = mutableListOf<Job>()
+    private val retryJobs = ConcurrentHashMap.newKeySet<Job>()
     private val workerJobs = mutableListOf<Job>()
 
     private val interval = 1.seconds
@@ -184,9 +185,7 @@ class RateLimitedMailQueue(
                 }
             }
 
-            synchronized(workerJobs) {
-                workerJobs.add(job)
-            }
+            workerJobs.add(job)
         }
 
         logger.info("Worker pool started with $workerCount workers")
@@ -246,10 +245,9 @@ class RateLimitedMailQueue(
                             )
                         }
                     }
-                    synchronized(retryJobs) {
-                        retryJobs.add(retryJob)
-                        // Clean up completed jobs to prevent memory leak
-                        retryJobs.removeAll { it.isCompleted }
+                    retryJobs.add(retryJob)
+                    retryJob.invokeOnCompletion {
+                        retryJobs.remove(retryJob)
                     }
                 }
 
