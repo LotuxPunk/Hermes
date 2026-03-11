@@ -2,6 +2,7 @@ package com.vandeas.logic
 
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.MailInput
+import com.vandeas.entities.Attachment
 import com.vandeas.entities.SendOperationResult
 
 interface MailLogic {
@@ -15,8 +16,9 @@ interface MailLogic {
     /**
      * Sends a mail
      * @param mailInput The mail to send
+     * @param attachments Optional list of attachments
      */
-    suspend fun sendMail(mailInput: MailInput): SendOperationResult
+    suspend fun sendMail(mailInput: MailInput, attachments: List<Attachment> = emptyList()): SendOperationResult
 
     /**
      * Sends a batch of mails

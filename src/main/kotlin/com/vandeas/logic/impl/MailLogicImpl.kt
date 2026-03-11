@@ -8,6 +8,7 @@ import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.dto.configs.MailConfig
 import com.vandeas.dto.configs.captcha.GoogleRecaptchaConfig
 import com.vandeas.dto.configs.captcha.KerberusConfig
+import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.exception.DailyLimitExceededException
@@ -84,7 +85,7 @@ class MailLogicImpl(
         )
     }
 
-    override suspend fun sendMail(mailInput: MailInput): SendOperationResult {
+    override suspend fun sendMail(mailInput: MailInput, attachments: List<Attachment>): SendOperationResult {
         val config = mailConfigHandler.get(mailInput.id)
         val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
@@ -95,7 +96,8 @@ class MailLogicImpl(
             from = config.sender,
             to = mailInput.email,
             subject = subjectTemplate.processToString(mailInput.attributes),
-            content = contentTemplate.processToString(mailInput.attributes)
+            content = contentTemplate.processToString(mailInput.attributes),
+            attachments = attachments
         )
     }
 

@@ -2,18 +2,22 @@ package com.vandeas.plugins
 
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.MailInput
+import com.vandeas.entities.Attachment
 import com.vandeas.entities.MailSendStatus
 import com.vandeas.exception.DailyLimitExceededException
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.KerberusLogic
 import com.vandeas.logic.MailLogic
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.utils.io.*
+import kotlinx.serialization.json.Json
 import org.koin.ktor.ext.inject
 
 fun Application.configureRouting() {
@@ -72,10 +76,44 @@ fun Application.configureRouting() {
                     }
                 }
                 post {
-                    val mailInput = call.receive<MailInput>()
-
                     try {
-                        val response = mailLogic.sendMail(mailInput)
+                        val contentType = call.request.contentType()
+                        val mailInput: MailInput
+                        val attachments: List<Attachment>
+
+                        if (contentType.match(ContentType.MultiPart.FormData)) {
+                            val parts = call.receiveMultipart()
+                            var dataPart: String? = null
+                            val fileAttachments = mutableListOf<Attachment>()
+
+                            parts.forEachPart { part ->
+                                when (part) {
+                                    is PartData.FormItem -> {
+                                        if (part.name == "data") {
+                                            dataPart = part.value
+                                        }
+                                    }
+                                    is PartData.FileItem -> {
+                                        val fileName = part.originalFileName ?: "attachment"
+                                        val fileContentType = part.contentType?.toString() ?: "application/octet-stream"
+                                        val fileBytes = part.provider().toByteArray()
+                                        fileAttachments.add(Attachment(fileName, fileBytes, fileContentType))
+                                    }
+                                    else -> {}
+                                }
+                                part.dispose()
+                            }
+
+                            mailInput = Json.decodeFromString<MailInput>(
+                                dataPart ?: throw IllegalArgumentException("Missing 'data' form field")
+                            )
+                            attachments = fileAttachments
+                        } else {
+                            mailInput = call.receive<MailInput>()
+                            attachments = emptyList()
+                        }
+
+                        val response = mailLogic.sendMail(mailInput, attachments)
                         call.respond(response.status.toHttpStatusCode(), response)
                     } catch (e: Exception) {
                         when (e) {
