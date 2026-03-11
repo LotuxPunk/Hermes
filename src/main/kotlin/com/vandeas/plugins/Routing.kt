@@ -94,7 +94,10 @@ fun Application.configureRouting() {
                                         }
                                     }
                                     is PartData.FileItem -> {
-                                        val fileName = part.originalFileName ?: "attachment"
+                                        val fileName = (part.originalFileName ?: "attachment")
+                                            .replace("..", "")
+                                            .replace("/", "")
+                                            .replace("\\", "")
                                         val fileContentType = part.contentType?.toString() ?: "application/octet-stream"
                                         val fileBytes = part.provider().toByteArray()
                                         fileAttachments.add(Attachment(fileName, fileBytes, fileContentType))
