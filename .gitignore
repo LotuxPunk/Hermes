@@ -40,3 +40,6 @@ out/
 
 ### TEST
 /scratch
+
+### Claude ###
+.claude/
