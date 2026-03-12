@@ -1,5 +1,7 @@
 package com.vandeas.plugins
 
+import com.vandeas.config.AnyMapSerializer
+import com.vandeas.dto.BroadcastMailRequest
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.MailInput
 import com.vandeas.entities.Attachment
@@ -123,6 +125,72 @@ fun Application.configureRouting() {
                             is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
                             else -> {
                                 application.log.error("Failed to send mail: ${e.message}")
+                                call.respond(HttpStatusCode.InternalServerError)
+                            }
+                        }
+                    }
+                }
+
+                post("/{configId}/broadcast") {
+                    try {
+                        val configId = call.parameters["configId"]
+                            ?: throw IllegalArgumentException("Missing configId path parameter")
+
+                        val contentType = call.request.contentType()
+                        val broadcastRequest: BroadcastMailRequest
+                        val attachments: List<Attachment>
+
+                        if (contentType.match(ContentType.MultiPart.FormData)) {
+                            val parts = call.receiveMultipart()
+                            val recipients = mutableListOf<String>()
+                            var attributesPart: String? = null
+                            val fileAttachments = mutableListOf<Attachment>()
+
+                            parts.forEachPart { part ->
+                                when (part) {
+                                    is PartData.FormItem -> {
+                                        when (part.name) {
+                                            "to" -> recipients.add(part.value)
+                                            "attributes" -> attributesPart = part.value
+                                        }
+                                    }
+                                    is PartData.FileItem -> {
+                                        val fileName = (part.originalFileName ?: "attachment")
+                                            .replace("..", "")
+                                            .replace("/", "")
+                                            .replace("\\", "")
+                                        val fileContentType = part.contentType?.toString() ?: "application/octet-stream"
+                                        val fileBytes = part.provider().toByteArray()
+                                        fileAttachments.add(Attachment(fileName, fileBytes, fileContentType))
+                                    }
+                                    else -> {}
+                                }
+                                part.dispose()
+                            }
+
+                            require(recipients.isNotEmpty()) { "At least one 'to' form field is required" }
+
+                            val attributes: Map<String, Any?> = attributesPart?.let {
+                                Json.decodeFromString(AnyMapSerializer, it)
+                            } ?: emptyMap()
+
+                            broadcastRequest = BroadcastMailRequest(
+                                to = recipients,
+                                attributes = attributes
+                            )
+                            attachments = fileAttachments
+                        } else {
+                            broadcastRequest = call.receive<BroadcastMailRequest>()
+                            attachments = emptyList()
+                        }
+
+                        val response = mailLogic.broadcastMail(configId, broadcastRequest, attachments)
+                        call.respond(response.status.toHttpStatusCode(), response)
+                    } catch (e: Exception) {
+                        when (e) {
+                            is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
+                            else -> {
+                                application.log.error("Failed to broadcast mail: ${e.message}")
                                 call.respond(HttpStatusCode.InternalServerError)
                             }
                         }

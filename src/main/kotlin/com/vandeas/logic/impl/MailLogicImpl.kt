@@ -1,5 +1,6 @@
 package com.vandeas.logic.impl
 
+import com.vandeas.dto.BroadcastMailRequest
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.GoogleRecaptchaContactForm
 import com.vandeas.dto.KerberusContactForm
@@ -31,6 +32,7 @@ class MailLogicImpl(
 
     companion object {
         private const val RESEND_BATCH_LIMIT = 100
+        private const val BROADCAST_RECIPIENT_LIMIT = 50
     }
 
     private val mailers: MutableMap<String, Mailer> = mutableMapOf() //TODO: Update mailers on config change/deletion
@@ -147,6 +149,40 @@ class MailLogicImpl(
             failed = sendResults.flatMap { it.failed },
             bounced = sendResults.flatMap { it.bounced },
             temporary = sendResults.flatMap { it.temporary }
+        )
+    }
+
+    override suspend fun broadcastMail(
+        configId: String,
+        request: BroadcastMailRequest,
+        attachments: List<Attachment>
+    ): SendOperationResult {
+        require(request.to.isNotEmpty()) { "Recipient list must not be empty" }
+        require(request.to.size <= BROADCAST_RECIPIENT_LIMIT) {
+            "Recipient list exceeds the maximum of $BROADCAST_RECIPIENT_LIMIT"
+        }
+
+        val config = mailConfigHandler.get(configId)
+        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
+        val subjectTemplate = Template.parse(config.subjectTemplate)
+
+        val mailer = config.getMailerOrCreate()
+
+        val subject = subjectTemplate.processToString(request.attributes)
+        val content = contentTemplate.processToString(request.attributes)
+
+        return mailer.sendEmailsWithRetry(
+            mails = request.to.map { recipient ->
+                Mail(
+                    from = config.sender,
+                    to = recipient,
+                    subject = subject,
+                    content = content,
+                    attachments = attachments
+                )
+            },
+            maxRetries = 3,
+            retryDelayMs = 1000L
         )
     }
 }
