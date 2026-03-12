@@ -19,7 +19,7 @@ repositories {
 dependencies {
     // Compose Desktop
     implementation(compose.desktop.currentOs)
-    implementation(compose.materialIconsExtended)
+    implementation(compose.material3)
     implementation(compose.materialIconsExtended)
 
     // SSH Client

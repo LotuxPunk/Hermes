@@ -1,5 +1,6 @@
 package com.vandeas.logic.impl
 
+import com.vandeas.dto.BroadcastMailRequest
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.GoogleRecaptchaContactForm
 import com.vandeas.dto.KerberusContactForm
@@ -8,6 +9,7 @@ import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.dto.configs.MailConfig
 import com.vandeas.dto.configs.captcha.GoogleRecaptchaConfig
 import com.vandeas.dto.configs.captcha.KerberusConfig
+import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.exception.DailyLimitExceededException
@@ -30,6 +32,7 @@ class MailLogicImpl(
 
     companion object {
         private const val RESEND_BATCH_LIMIT = 100
+        private const val BROADCAST_RECIPIENT_LIMIT = 50
     }
 
     private val mailers: MutableMap<String, Mailer> = mutableMapOf() //TODO: Update mailers on config change/deletion
@@ -84,7 +87,7 @@ class MailLogicImpl(
         )
     }
 
-    override suspend fun sendMail(mailInput: MailInput): SendOperationResult {
+    override suspend fun sendMail(mailInput: MailInput, attachments: List<Attachment>): SendOperationResult {
         val config = mailConfigHandler.get(mailInput.id)
         val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
         val subjectTemplate = Template.parse(config.subjectTemplate)
@@ -95,7 +98,8 @@ class MailLogicImpl(
             from = config.sender,
             to = mailInput.email,
             subject = subjectTemplate.processToString(mailInput.attributes),
-            content = contentTemplate.processToString(mailInput.attributes)
+            content = contentTemplate.processToString(mailInput.attributes),
+            attachments = attachments
         )
     }
 
@@ -145,6 +149,40 @@ class MailLogicImpl(
             failed = sendResults.flatMap { it.failed },
             bounced = sendResults.flatMap { it.bounced },
             temporary = sendResults.flatMap { it.temporary }
+        )
+    }
+
+    override suspend fun broadcastMail(
+        configId: String,
+        request: BroadcastMailRequest,
+        attachments: List<Attachment>
+    ): SendOperationResult {
+        require(request.to.isNotEmpty()) { "Recipient list must not be empty" }
+        require(request.to.size <= BROADCAST_RECIPIENT_LIMIT) {
+            "Recipient list exceeds the maximum of $BROADCAST_RECIPIENT_LIMIT"
+        }
+
+        val config = mailConfigHandler.get(configId)
+        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
+        val subjectTemplate = Template.parse(config.subjectTemplate)
+
+        val mailer = config.getMailerOrCreate()
+
+        val subject = subjectTemplate.processToString(request.attributes)
+        val content = contentTemplate.processToString(request.attributes)
+
+        return mailer.sendEmailsWithRetry(
+            mails = request.to.map { recipient ->
+                Mail(
+                    from = config.sender,
+                    to = recipient,
+                    subject = subject,
+                    content = content,
+                    attachments = attachments
+                )
+            },
+            maxRetries = 3,
+            retryDelayMs = 1000L
         )
     }
 }

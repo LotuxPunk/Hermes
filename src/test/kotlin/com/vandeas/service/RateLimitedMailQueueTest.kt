@@ -1,5 +1,6 @@
 package com.vandeas.service
 
+import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.MailQueueItem
 import com.vandeas.entities.QueuedMailResult
@@ -292,7 +293,7 @@ class RateLimitedMailQueueTest {
         var shouldTemporaryFailFor = setOf<String>()
         var onSend: ((Mail) -> Unit)? = null
 
-        override suspend fun sendEmail(to: String, from: String, subject: String, content: String): SendOperationResult {
+        override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>): SendOperationResult {
             val mail = Mail(from, to, subject, content)
 
             onSend?.invoke(mail)

@@ -1,5 +1,6 @@
 package com.vandeas.service
 
+import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 
@@ -9,6 +10,7 @@ interface Mailer {
         from: String,
         subject: String,
         content: String,
+        attachments: List<Attachment> = emptyList(),
     ) : SendOperationResult
 
     suspend fun sendEmails(

@@ -24,6 +24,9 @@ Mailer micro-service for vandeas
   - [Send Batch of Mails Using Mail Configurations](#send-batch-of-mails-using-mail-configurations)
     - [POST `/v1/mail/batch`](#post-v1mailbatch)
     - [Body Parameters](#body-parameters-2)
+  - [Broadcast Mail to Multiple Recipients](#broadcast-mail-to-multiple-recipients)
+    - [POST `/v1/mail/{configId}/broadcast`](#post-v1mailconfigidbroadcast)
+    - [Body Parameters](#body-parameters-3)
 - [Roadmap](#roadmap)
   - [Completed and Pending Features](#completed-and-pending-features)
 
@@ -203,6 +206,43 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
     }
 ]
 ```
+
+#### Broadcast mail to multiple recipients
+
+**POST** `/v1/mail/{configId}/broadcast`
+
+Send the same email to multiple recipients using a single mail configuration. The template is rendered once with the provided attributes and sent to all recipients. Maximum **50 recipients** per request.
+
+##### Path Parameters
+
+| Parameter  | Type     | Description                       |
+|:-----------|:---------|:----------------------------------|
+| `configId` | `string` | **Required**. Your mail config id |
+
+##### Body (JSON)
+
+| Attribute    | Type                                | Description                                          |
+|:-------------|:------------------------------------|:-----------------------------------------------------|
+| `to`         | `Array<string>`                     | **Required** List of recipient email addresses       |
+| `attributes` | `Map<string, string> / JSON Object` | **Required** Attributes to hydrate the mail template |
+
+```json
+{
+    "to": ["alice@example.com", "bob@example.com"],
+    "attributes": {
+        "firstName": "Team",
+        "eventName": "Launch Day"
+    }
+}
+```
+
+##### Body (Multipart Form Data — with attachments)
+
+| Field        | Type     | Description                                                  |
+|:-------------|:---------|:-------------------------------------------------------------|
+| `to`         | `string` | **Required** Recipient email (repeat the field for multiple) |
+| `attributes` | `string` | **Optional** JSON object of template attributes              |
+| `attachment` | `file`   | **Optional** File attachment (repeat for multiple)           |
 
 
 ## Roadmap

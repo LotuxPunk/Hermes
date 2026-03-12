@@ -3,10 +3,13 @@ package com.vandeas.service.impl.mailer
 import com.resend.Resend
 import com.resend.core.exception.ResendException
 import com.resend.services.emails.model.CreateEmailOptions
+import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.service.Mailer
 import io.ktor.util.logging.*
+import java.util.Base64
+import com.resend.services.emails.model.Attachment as ResendAttachment
 
 class ResendMailer(
     apiKey: String
@@ -15,13 +18,24 @@ class ResendMailer(
 
     private val logger = KtorSimpleLogger("com.vandeas.service.impl.mailer.ResendMailer")
 
-    override suspend fun sendEmail(to: String, from: String, subject: String, content: String): SendOperationResult {
-        val sendMailRequest = CreateEmailOptions.builder()
+    override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>): SendOperationResult {
+        val builder = CreateEmailOptions.builder()
             .from(from)
             .to(to)
             .subject(subject)
             .html(content)
-            .build()
+
+        if (attachments.isNotEmpty()) {
+            builder.attachments(attachments.map { attachment ->
+                ResendAttachment.builder()
+                    .fileName(attachment.filename)
+                    .content(Base64.getEncoder().encodeToString(attachment.content))
+                    .contentType(attachment.contentType)
+                    .build()
+            })
+        }
+
+        val sendMailRequest = builder.build()
 
         return try {
             val response = resend.emails().send(sendMailRequest)
@@ -94,12 +108,23 @@ class ResendMailer(
 
     override suspend fun sendEmails(mails: List<Mail>): SendOperationResult {
         val requests = mails.map {
-            CreateEmailOptions.builder()
+            val builder = CreateEmailOptions.builder()
                 .from(it.from)
                 .to(it.to)
                 .subject(it.subject)
                 .html(it.content)
-                .build()
+
+            if (it.attachments.isNotEmpty()) {
+                builder.attachments(it.attachments.map { attachment ->
+                    ResendAttachment.builder()
+                        .fileName(attachment.filename)
+                        .content(Base64.getEncoder().encodeToString(attachment.content))
+                        .contentType(attachment.contentType)
+                        .build()
+                })
+            }
+
+            builder.build()
         }
 
         return try {
@@ -118,7 +143,7 @@ class ResendMailer(
             // When batch fails, we need to send individually to categorize failures
             logger.info("Falling back to individual sends to categorize failures")
             val results = mails.map { mail ->
-                sendEmail(mail.to, mail.from, mail.subject, mail.content)
+                sendEmail(mail.to, mail.from, mail.subject, mail.content, mail.attachments)
             }
 
             // Aggregate all results

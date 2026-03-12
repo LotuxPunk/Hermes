@@ -1,10 +1,12 @@
 package com.vandeas.service.impl.mailer
 
+import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.service.Mailer
 import io.ktor.util.logging.*
 import java.util.*
+import javax.activation.DataHandler
 import javax.mail.Authenticator
 import javax.mail.Message
 import javax.mail.MessagingException
@@ -13,7 +15,10 @@ import javax.mail.SendFailedException
 import javax.mail.Session
 import javax.mail.Transport
 import javax.mail.internet.InternetAddress
+import javax.mail.internet.MimeBodyPart
 import javax.mail.internet.MimeMessage
+import javax.mail.internet.MimeMultipart
+import javax.mail.util.ByteArrayDataSource
 
 class SMTPMailer(
 	username: String,
@@ -38,12 +43,27 @@ class SMTPMailer(
 			},
 		)
 
-	override suspend fun sendEmail(to: String, from: String, subject: String, content: String): SendOperationResult {
+	override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>): SendOperationResult {
 		val message = MimeMessage(session).apply {
 			setFrom(InternetAddress(from))
 			addRecipient(Message.RecipientType.TO, InternetAddress(to))
 			this.subject = subject
-			setText(content, "utf-8", "html")
+			if (attachments.isEmpty()) {
+				setText(content, "utf-8", "html")
+			} else {
+				val multipart = MimeMultipart().apply {
+					addBodyPart(MimeBodyPart().apply {
+						setText(content, "utf-8", "html")
+					})
+					attachments.forEach { attachment ->
+						addBodyPart(MimeBodyPart().apply {
+							dataHandler = DataHandler(ByteArrayDataSource(attachment.content, attachment.contentType))
+							fileName = attachment.filename
+						})
+					}
+				}
+				setContent(multipart)
+			}
 		}
 		return try {
 			Transport.send(message)
@@ -105,7 +125,7 @@ class SMTPMailer(
 	}
 
 	override suspend fun sendEmails(mails: List<Mail>) = mails.map {
-		sendEmail(it.to, it.from, it.subject, it.content)
+		sendEmail(it.to, it.from, it.subject, it.content, it.attachments)
 	}.let { responses ->
         SendOperationResult(
             sent = responses.flatMap { it.sent },
