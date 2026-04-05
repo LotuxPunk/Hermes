@@ -53,7 +53,6 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.resend.java)
     implementation(libs.kfswatch)
-    implementation(libs.kotlin.mustache)
     implementation(libs.bundles.serialization)
     implementation(libs.javax.mail)
 

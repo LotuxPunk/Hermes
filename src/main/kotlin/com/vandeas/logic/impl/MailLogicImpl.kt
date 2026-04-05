@@ -22,7 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
-import net.pwall.mustache.Template
+import com.vandeas.service.TemplateRenderer
 
 class MailLogicImpl(
     private val mailConfigHandler: ConfigDirectory<MailConfig>,
@@ -58,13 +58,11 @@ class MailLogicImpl(
 
         limiter.recordMailSent(config)
 
-        val contentTemplate = Template.parse(contactFormConfigHandler.getTemplate(config.id))
-        val subjectTemplate = Template.parse(config.subjectTemplate)
-
         val mailer = mailers[config.identifierFromCredentials()] ?: config.toMailer().also { mailers[config.identifierFromCredentials()] = it }
 
-        val subject = subjectTemplate.processToString(mapOf("form" to form))
-        val content = contentTemplate.processToString(mapOf("form" to form))
+        val context = mapOf("form" to form)
+        val subject = TemplateRenderer.renderPlainText(config.subjectTemplate, context)
+        val content = TemplateRenderer.renderHtml(contactFormConfigHandler.getTemplate(config.id), context)
 
         return mailer.sendEmailsWithRetry(
             mails = form.destinations.takeIf { it.isNotEmpty() }?.map { destination ->
@@ -89,16 +87,14 @@ class MailLogicImpl(
 
     override suspend fun sendMail(mailInput: MailInput, attachments: List<Attachment>): SendOperationResult {
         val config = mailConfigHandler.get(mailInput.id)
-        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
-        val subjectTemplate = Template.parse(config.subjectTemplate)
 
         val mailer = mailers[config.identifierFromCredentials()] ?: config.toMailer().also { mailers[config.identifierFromCredentials()] = it }
 
         return mailer.sendEmail(
             from = config.sender,
             to = mailInput.email,
-            subject = subjectTemplate.processToString(mailInput.attributes),
-            content = contentTemplate.processToString(mailInput.attributes),
+            subject = TemplateRenderer.renderPlainText(config.subjectTemplate, mailInput.attributes),
+            content = TemplateRenderer.renderHtml(mailConfigHandler.getTemplate(config.id), mailInput.attributes),
             attachments = attachments
         )
     }
@@ -128,14 +124,13 @@ class MailLogicImpl(
             async {
                 mailerByIdentifier[identifier]!!.sendEmailsWithRetry(
                     mails = mailInputs.map { mailInput ->
-                        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(mailInput.id))
-                        val subjectTemplate = Template.parse(mailConfigHandler.get(mailInput.id).subjectTemplate)
+                        val mailConfig = mailConfigHandler.get(mailInput.id)
 
                         Mail(
-                            from = mailConfigHandler.get(mailInput.id).sender,
+                            from = mailConfig.sender,
                             to = mailInput.email,
-                            subject = subjectTemplate.processToString(mailInput.attributes),
-                            content = contentTemplate.processToString(mailInput.attributes)
+                            subject = TemplateRenderer.renderPlainText(mailConfig.subjectTemplate, mailInput.attributes),
+                            content = TemplateRenderer.renderHtml(mailConfigHandler.getTemplate(mailInput.id), mailInput.attributes)
                         )
                     },
                     maxRetries = 3,
@@ -163,13 +158,10 @@ class MailLogicImpl(
         }
 
         val config = mailConfigHandler.get(configId)
-        val contentTemplate = Template.parse(mailConfigHandler.getTemplate(config.id))
-        val subjectTemplate = Template.parse(config.subjectTemplate)
-
         val mailer = config.getMailerOrCreate()
 
-        val subject = subjectTemplate.processToString(request.attributes)
-        val content = contentTemplate.processToString(request.attributes)
+        val subject = TemplateRenderer.renderPlainText(config.subjectTemplate, request.attributes)
+        val content = TemplateRenderer.renderHtml(mailConfigHandler.getTemplate(config.id), request.attributes)
 
         return mailer.sendEmailsWithRetry(
             mails = request.to.map { recipient ->
