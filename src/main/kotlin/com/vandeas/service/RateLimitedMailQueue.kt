@@ -256,6 +256,23 @@ class RateLimitedMailQueue(
                     logger.error("Failed to send mail to ${item.mail.to} (ref: ${item.reference})")
                     _results.emit(QueuedMailResult(item.reference, result))
                 }
+
+                result.temporary.isNotEmpty() -> {
+                    // Retries exhausted: promote to a terminal failure rather than dropping silently.
+                    logger.error("Retries exhausted for ${item.mail.to} (ref: ${item.reference}) after ${item.retryCount} attempt(s)")
+                    _results.emit(
+                        QueuedMailResult(
+                            item.reference,
+                            SendOperationResult(failed = listOf(item.mail.to))
+                        )
+                    )
+                }
+
+                else -> {
+                    // Empty/unrecognised result. Surface it instead of dropping it on the floor.
+                    logger.warn("Mailer returned an empty result for ${item.mail.to} (ref: ${item.reference}); emitting as-is")
+                    _results.emit(QueuedMailResult(item.reference, result))
+                }
             }
         } catch (e: CancellationException) {
             // Structured concurrency: cancellation must propagate, not be reported as a failure.

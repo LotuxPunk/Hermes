@@ -258,6 +258,52 @@ class RateLimitedMailQueueTest {
     }
 
     @Test
+    fun `should emit terminal failure when temporary failures exhaust retries`() = runBlocking {
+        // Given: A mailer that always returns a temporary failure (and only sets `temporary`,
+        // not `failed` — this matches the documented contract).
+        // When retryCount reaches maxRetries, the queue must emit a terminal result with
+        // the address moved into `failed`, not silently drop the item.
+        mockMailer.shouldTemporaryFailFor = setOf("always-temp@test.com")
+        queue = RateLimitedMailQueue(mockMailer, rateLimit = 1000, workerCount = 1, scope = scope)
+
+        val collected = java.util.Collections.synchronizedList(mutableListOf<QueuedMailResult>())
+        val collector = scope.launch { queue.results.collect { collected.add(it) } }
+
+        delay(100.milliseconds)
+
+        queue.enqueue(
+            MailQueueItem(
+                reference = "exhausted-ref",
+                mail = Mail("s@test.com", "always-temp@test.com", "Subject", "Content"),
+                maxRetries = 1
+            )
+        )
+
+        // Wait long enough for: initial attempt + 1 retry (~1s exponential backoff) + processing margin
+        withTimeout(8.seconds) {
+            while (collected.none {
+                    it.reference == "exhausted-ref" &&
+                        it.result.failed.contains("always-temp@test.com") &&
+                        it.result.temporary.isEmpty()
+                }) {
+                delay(50.milliseconds)
+            }
+        }
+
+        collector.cancel()
+
+        val terminal = collected.last { it.reference == "exhausted-ref" }
+        assertTrue(
+            terminal.result.failed.contains("always-temp@test.com"),
+            "Terminal emission must move the address into `failed`; got $terminal"
+        )
+        assertTrue(
+            terminal.result.temporary.isEmpty(),
+            "Terminal emission must clear `temporary`; got $terminal"
+        )
+    }
+
+    @Test
     fun `cancellation in mailer should not be reported as a phantom failure`() = runBlocking {
         // Given: a mailer that throws CancellationException (simulating cooperative cancellation
         // from the underlying transport, e.g. an HTTP client cancelled mid-request).
