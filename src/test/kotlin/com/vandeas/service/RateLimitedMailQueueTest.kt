@@ -258,6 +258,65 @@ class RateLimitedMailQueueTest {
     }
 
     @Test
+    fun `cancellation in mailer should not be reported as a phantom failure`() = runBlocking {
+        // Given: a mailer that throws CancellationException (simulating cooperative cancellation
+        // from the underlying transport, e.g. an HTTP client cancelled mid-request).
+        // The queue's outer catch must rethrow CancellationException rather than emitting a
+        // bogus "failed" result with reason swallowed.
+        val cancellingMailer = object : Mailer {
+            override suspend fun sendEmail(
+                to: String,
+                from: String,
+                subject: String,
+                content: String,
+                attachments: List<Attachment>
+            ): SendOperationResult {
+                throw CancellationException("simulated cancellation")
+            }
+
+            override suspend fun sendEmails(mails: List<Mail>): SendOperationResult =
+                SendOperationResult()
+        }
+
+        val isolatedScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val isolatedQueue = RateLimitedMailQueue(
+            cancellingMailer,
+            rateLimit = 1000,
+            workerCount = 1,
+            scope = isolatedScope
+        )
+
+        try {
+            val collected = java.util.Collections.synchronizedList(mutableListOf<QueuedMailResult>())
+            val collector = scope.launch { isolatedQueue.results.collect { collected.add(it) } }
+
+            // Let the collector subscribe before enqueueing
+            delay(100.milliseconds)
+
+            isolatedQueue.enqueue(
+                MailQueueItem(
+                    reference = "phantom-ref",
+                    mail = Mail("s@test.com", "to@test.com", "S", "C")
+                )
+            )
+
+            // Give the worker time to pick up and "fail" via cancellation
+            delay(500.milliseconds)
+
+            val phantomEmissions = collected.filter { it.reference == "phantom-ref" }
+            assertTrue(
+                phantomEmissions.isEmpty(),
+                "CancellationException must not be swallowed and reported as a phantom failure; got: $phantomEmissions"
+            )
+
+            collector.cancel()
+        } finally {
+            isolatedQueue.shutdown()
+            isolatedScope.cancel()
+        }
+    }
+
+    @Test
     fun `enqueueAll should add all items to queue`() = runBlocking {
         // Given: Queue with worker pool
         queue = RateLimitedMailQueue(mockMailer, rateLimit = 100, workerCount = 3, scope = scope)

@@ -257,6 +257,9 @@ class RateLimitedMailQueue(
                     _results.emit(QueuedMailResult(item.reference, result))
                 }
             }
+        } catch (e: CancellationException) {
+            // Structured concurrency: cancellation must propagate, not be reported as a failure.
+            throw e
         } catch (e: Exception) {
             logger.error("Error processing mail item ${item.reference}: ${e.message}", e)
             _results.emit(
