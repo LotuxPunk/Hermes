@@ -219,8 +219,8 @@ class RateLimitedMailQueue(
                 }
 
                 result.temporary.isNotEmpty() && item.retryCount < item.maxRetries -> {
-                    // Re-queue for retry with exponential backoff
-                    val retryDelay = (1000L * (item.retryCount + 1)).milliseconds
+                    // Re-queue for retry with exponential backoff: 1s, 2s, 4s, 8s, ...
+                    val retryDelay = (1000L shl item.retryCount).milliseconds
                     logger.warn("Temporary failure for ${item.mail.to}, retrying in $retryDelay (attempt ${item.retryCount + 1}/${item.maxRetries})")
 
                     // Emit intermediate result to notify consumers about the retry attempt

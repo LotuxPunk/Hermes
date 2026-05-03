@@ -258,6 +258,68 @@ class RateLimitedMailQueueTest {
     }
 
     @Test
+    fun `retry backoff should grow exponentially across retries`() = runBlocking {
+        // Given: a mailer that records the wall-clock time of each attempt and always
+        // returns a temporary failure (and only temporary, so we don't hit any other branch).
+        val attemptTimes = java.util.Collections.synchronizedList(mutableListOf<Long>())
+        val timingMailer = object : Mailer {
+            override suspend fun sendEmail(
+                to: String,
+                from: String,
+                subject: String,
+                content: String,
+                attachments: List<Attachment>
+            ): SendOperationResult {
+                attemptTimes.add(System.currentTimeMillis())
+                return SendOperationResult(temporary = listOf(to))
+            }
+
+            override suspend fun sendEmails(mails: List<Mail>): SendOperationResult =
+                SendOperationResult()
+        }
+
+        val isolatedScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val isolatedQueue = RateLimitedMailQueue(
+            timingMailer,
+            rateLimit = 1000,
+            workerCount = 1,
+            scope = isolatedScope
+        )
+
+        try {
+            isolatedQueue.enqueue(
+                MailQueueItem(
+                    reference = "backoff-ref",
+                    mail = Mail("s@test.com", "backoff@test.com", "S", "C"),
+                    maxRetries = 3
+                )
+            )
+
+            // 4 attempts total: initial + 3 retries.
+            // Linear (1s, 2s, 3s) → ~6s; Exponential (1s, 2s, 4s) → ~7s. We wait up to 12s.
+            withTimeout(12.seconds) {
+                while (attemptTimes.size < 4) delay(50.milliseconds)
+            }
+
+            val deltas = attemptTimes.zipWithNext { a, b -> b - a }
+            // Deltas should be [~1000, ~2000, ~4000] for exponential.
+            // For linear they'd be [~1000, ~2000, ~3000].
+            // The discriminating signal: deltas[2] / deltas[1].
+            //   - linear: ~1.5
+            //   - exponential: ~2.0
+            // Use 1.75 as midpoint cutoff with margin for scheduler jitter.
+            val ratio = deltas[2].toDouble() / deltas[1].toDouble()
+            assertTrue(
+                ratio >= 1.75,
+                "Expected exponential backoff (ratio ≥ 1.75) but got linear-shaped deltas; deltas=$deltas, ratio=$ratio"
+            )
+        } finally {
+            isolatedQueue.shutdown()
+            isolatedScope.cancel()
+        }
+    }
+
+    @Test
     fun `should emit terminal failure when temporary failures exhaust retries`() = runBlocking {
         // Given: A mailer that always returns a temporary failure (and only sets `temporary`,
         // not `failed` — this matches the documented contract).
