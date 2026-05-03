@@ -67,6 +67,14 @@ class RateLimitedMailQueue(
      */
     suspend fun enqueue(item: MailQueueItem): String {
         queuedCount.incrementAndGet()
+        return submit(item)
+    }
+
+    /**
+     * Internal re-enqueue used by the retry path. Skips [queuedCount] so stats
+     * reflect caller-initiated enqueues only.
+     */
+    private suspend fun submit(item: MailQueueItem): String {
         queue.send(item)
         logger.debug("Enqueued mail with reference: ${item.reference} (priority: ${item.priority})")
         return item.reference
@@ -231,7 +239,7 @@ class RateLimitedMailQueue(
                         try {
                             delay(retryDelay)
                             val retryItem = item.copy(retryCount = item.retryCount + 1)
-                            enqueue(retryItem)
+                            submit(retryItem)
                         } catch (e: CancellationException) {
                             logger.info("Retry cancelled for ${item.mail.to} (ref: ${item.reference})")
                             throw e

@@ -258,6 +258,47 @@ class RateLimitedMailQueueTest {
     }
 
     @Test
+    fun `queuedCount should not double-count retries`() = runBlocking {
+        // Given: a mailer that fails temporarily so the queue retries internally.
+        mockMailer.shouldTemporaryFailFor = setOf("retry@test.com")
+        queue = RateLimitedMailQueue(mockMailer, rateLimit = 1000, workerCount = 1, scope = scope)
+
+        val collected = java.util.Collections.synchronizedList(mutableListOf<QueuedMailResult>())
+        val collector = scope.launch { queue.results.collect { collected.add(it) } }
+
+        delay(100.milliseconds)
+
+        // One enqueue from the caller; queue does its own retries internally.
+        queue.enqueue(
+            MailQueueItem(
+                reference = "retry-ref",
+                mail = Mail("s@test.com", "retry@test.com", "S", "C"),
+                maxRetries = 2
+            )
+        )
+
+        // Wait until the terminal emission lands (so retries have all been attempted).
+        withTimeout(15.seconds) {
+            while (collected.none {
+                    it.reference == "retry-ref" &&
+                        it.result.failed.contains("retry@test.com") &&
+                        it.result.temporary.isEmpty()
+                }) {
+                delay(50.milliseconds)
+            }
+        }
+
+        collector.cancel()
+
+        val stats = queue.getStats()
+        assertEquals(
+            1L,
+            stats.queued,
+            "queued must reflect caller-initiated enqueues, not internal retries; got ${stats.queued}"
+        )
+    }
+
+    @Test
     fun `retry backoff should grow exponentially across retries`() = runBlocking {
         // Given: a mailer that records the wall-clock time of each attempt and always
         // returns a temporary failure (and only temporary, so we don't hit any other branch).
