@@ -67,6 +67,14 @@ class RateLimitedMailQueue(
      */
     suspend fun enqueue(item: MailQueueItem): String {
         queuedCount.incrementAndGet()
+        return submit(item)
+    }
+
+    /**
+     * Internal re-enqueue used by the retry path. Skips [queuedCount] so stats
+     * reflect caller-initiated enqueues only.
+     */
+    private suspend fun submit(item: MailQueueItem): String {
         queue.send(item)
         logger.debug("Enqueued mail with reference: ${item.reference} (priority: ${item.priority})")
         return item.reference
@@ -219,8 +227,8 @@ class RateLimitedMailQueue(
                 }
 
                 result.temporary.isNotEmpty() && item.retryCount < item.maxRetries -> {
-                    // Re-queue for retry with exponential backoff
-                    val retryDelay = (1000L * (item.retryCount + 1)).milliseconds
+                    // Re-queue for retry with exponential backoff: 1s, 2s, 4s, 8s, ...
+                    val retryDelay = (1000L shl item.retryCount).milliseconds
                     logger.warn("Temporary failure for ${item.mail.to}, retrying in $retryDelay (attempt ${item.retryCount + 1}/${item.maxRetries})")
 
                     // Emit intermediate result to notify consumers about the retry attempt
@@ -231,7 +239,7 @@ class RateLimitedMailQueue(
                         try {
                             delay(retryDelay)
                             val retryItem = item.copy(retryCount = item.retryCount + 1)
-                            enqueue(retryItem)
+                            submit(retryItem)
                         } catch (e: CancellationException) {
                             logger.info("Retry cancelled for ${item.mail.to} (ref: ${item.reference})")
                             throw e
@@ -256,7 +264,27 @@ class RateLimitedMailQueue(
                     logger.error("Failed to send mail to ${item.mail.to} (ref: ${item.reference})")
                     _results.emit(QueuedMailResult(item.reference, result))
                 }
+
+                result.temporary.isNotEmpty() -> {
+                    // Retries exhausted: promote to a terminal failure rather than dropping silently.
+                    logger.error("Retries exhausted for ${item.mail.to} (ref: ${item.reference}) after ${item.retryCount} attempt(s)")
+                    _results.emit(
+                        QueuedMailResult(
+                            item.reference,
+                            SendOperationResult(failed = listOf(item.mail.to))
+                        )
+                    )
+                }
+
+                else -> {
+                    // Empty/unrecognised result. Surface it instead of dropping it on the floor.
+                    logger.warn("Mailer returned an empty result for ${item.mail.to} (ref: ${item.reference}); emitting as-is")
+                    _results.emit(QueuedMailResult(item.reference, result))
+                }
             }
+        } catch (e: CancellationException) {
+            // Structured concurrency: cancellation must propagate, not be reported as a failure.
+            throw e
         } catch (e: Exception) {
             logger.error("Error processing mail item ${item.reference}: ${e.message}", e)
             _results.emit(

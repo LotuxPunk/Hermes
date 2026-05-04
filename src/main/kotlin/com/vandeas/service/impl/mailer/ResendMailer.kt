@@ -49,60 +49,11 @@ class ResendMailer(
         } catch (e: ResendException) {
             logger.error("Failed to send email to $to")
             logger.error("Error: ${e.message}")
-
-            val statusCode = e.statusCode
-            logger.debug("HTTP Status Code: $statusCode")
-
-            return when (statusCode) {
-                // 4xx errors (except rate limit) are typically permanent failures
-                400, 404 -> {
-                    // Bad request or email not found - permanent failure
-                    logger.warn("Email bounced (permanent failure): $to - Status: $statusCode")
-                    SendOperationResult(
-                        bounced = listOf(to),
-                        failed = listOf(to)
-                    )
-                }
-                422 -> {
-                    // Unprocessable entity - usually validation errors (permanent)
-                    logger.warn("Email bounced (validation error): $to - Status: $statusCode")
-                    SendOperationResult(
-                        bounced = listOf(to),
-                        failed = listOf(to)
-                    )
-                }
-                429 -> {
-                    // Rate limit - temporary failure, should retry later
-                    logger.warn("Rate limit hit, temporary failure: $to - Status: $statusCode")
-                    SendOperationResult(
-                        temporary = listOf(to),
-                        failed = listOf(to)
-                    )
-                }
-                in 500..599 -> {
-                    // Server errors - temporary failures, should retry
-                    logger.warn("Server error, temporary failure: $to - Status: $statusCode")
-                    SendOperationResult(
-                        temporary = listOf(to),
-                        failed = listOf(to)
-                    )
-                }
-                else -> {
-                    // Unknown status codes - treat as temporary to allow retry
-                    logger.warn("Unknown failure type (status: $statusCode), treating as temporary: $to")
-                    SendOperationResult(
-                        temporary = listOf(to),
-                        failed = listOf(to)
-                    )
-                }
-            }
+            logger.debug("HTTP Status Code: ${e.statusCode}")
+            classifyResendStatus(to, e.statusCode)
         } catch (e: Exception) {
-            // Catch-all for unexpected errors (network issues, timeouts, etc.)
             logger.error("Unexpected error while sending email to $to: ${e.message}")
-            SendOperationResult(
-                temporary = listOf(to),
-                failed = listOf(to)
-            )
+            classifyUnexpectedException(to, e)
         }
     }
 
@@ -154,5 +105,24 @@ class ResendMailer(
                 temporary = results.flatMap { it.temporary }
             )
         }
+    }
+
+    companion object {
+        /**
+         * Classify a Resend HTTP status code into a result for [to].
+         *
+         * The address is placed into exactly one of `bounced` or `temporary` — never also
+         * into `failed`, which is reserved for the queue's terminal failure decision.
+         */
+        fun classifyResendStatus(to: String, statusCode: Int): SendOperationResult = when (statusCode) {
+            400, 404, 422 -> SendOperationResult(bounced = listOf(to))
+            429 -> SendOperationResult(temporary = listOf(to))
+            in 500..599 -> SendOperationResult(temporary = listOf(to))
+            else -> SendOperationResult(temporary = listOf(to))
+        }
+
+        /** Network/timeout/etc.: retry. */
+        fun classifyUnexpectedException(to: String, @Suppress("UNUSED_PARAMETER") e: Exception): SendOperationResult =
+            SendOperationResult(temporary = listOf(to))
     }
 }

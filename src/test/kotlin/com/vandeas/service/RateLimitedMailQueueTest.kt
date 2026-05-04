@@ -258,6 +258,214 @@ class RateLimitedMailQueueTest {
     }
 
     @Test
+    fun `queuedCount should not double-count retries`() = runBlocking {
+        // Given: a mailer that fails temporarily so the queue retries internally.
+        mockMailer.shouldTemporaryFailFor = setOf("retry@test.com")
+        queue = RateLimitedMailQueue(mockMailer, rateLimit = 1000, workerCount = 1, scope = scope)
+
+        val collected = java.util.Collections.synchronizedList(mutableListOf<QueuedMailResult>())
+        val collector = scope.launch { queue.results.collect { collected.add(it) } }
+
+        delay(100.milliseconds)
+
+        // One enqueue from the caller; queue does its own retries internally.
+        queue.enqueue(
+            MailQueueItem(
+                reference = "retry-ref",
+                mail = Mail("s@test.com", "retry@test.com", "S", "C"),
+                maxRetries = 2
+            )
+        )
+
+        // Wait until the terminal emission lands (so retries have all been attempted).
+        withTimeout(15.seconds) {
+            while (collected.none {
+                    it.reference == "retry-ref" &&
+                        it.result.failed.contains("retry@test.com") &&
+                        it.result.temporary.isEmpty()
+                }) {
+                delay(50.milliseconds)
+            }
+        }
+
+        collector.cancel()
+
+        val stats = queue.getStats()
+        assertEquals(
+            1L,
+            stats.queued,
+            "queued must reflect caller-initiated enqueues, not internal retries; got ${stats.queued}"
+        )
+    }
+
+    @Test
+    fun `retry backoff should grow exponentially across retries`() = runBlocking {
+        // Given: a mailer that records the wall-clock time of each attempt and always
+        // returns a temporary failure (and only temporary, so we don't hit any other branch).
+        val attemptTimes = java.util.Collections.synchronizedList(mutableListOf<Long>())
+        val timingMailer = object : Mailer {
+            override suspend fun sendEmail(
+                to: String,
+                from: String,
+                subject: String,
+                content: String,
+                attachments: List<Attachment>
+            ): SendOperationResult {
+                attemptTimes.add(System.currentTimeMillis())
+                return SendOperationResult(temporary = listOf(to))
+            }
+
+            override suspend fun sendEmails(mails: List<Mail>): SendOperationResult =
+                SendOperationResult()
+        }
+
+        val isolatedScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val isolatedQueue = RateLimitedMailQueue(
+            timingMailer,
+            rateLimit = 1000,
+            workerCount = 1,
+            scope = isolatedScope
+        )
+
+        try {
+            isolatedQueue.enqueue(
+                MailQueueItem(
+                    reference = "backoff-ref",
+                    mail = Mail("s@test.com", "backoff@test.com", "S", "C"),
+                    maxRetries = 3
+                )
+            )
+
+            // 4 attempts total: initial + 3 retries.
+            // Linear (1s, 2s, 3s) → ~6s; Exponential (1s, 2s, 4s) → ~7s. We wait up to 12s.
+            withTimeout(12.seconds) {
+                while (attemptTimes.size < 4) delay(50.milliseconds)
+            }
+
+            val deltas = attemptTimes.zipWithNext { a, b -> b - a }
+            // Deltas should be [~1000, ~2000, ~4000] for exponential.
+            // For linear they'd be [~1000, ~2000, ~3000].
+            // The discriminating signal: deltas[2] / deltas[1].
+            //   - linear: ~1.5
+            //   - exponential: ~2.0
+            // Use 1.75 as midpoint cutoff with margin for scheduler jitter.
+            val ratio = deltas[2].toDouble() / deltas[1].toDouble()
+            assertTrue(
+                ratio >= 1.75,
+                "Expected exponential backoff (ratio ≥ 1.75) but got linear-shaped deltas; deltas=$deltas, ratio=$ratio"
+            )
+        } finally {
+            isolatedQueue.shutdown()
+            isolatedScope.cancel()
+        }
+    }
+
+    @Test
+    fun `should emit terminal failure when temporary failures exhaust retries`() = runBlocking {
+        // Given: A mailer that always returns a temporary failure (and only sets `temporary`,
+        // not `failed` — this matches the documented contract).
+        // When retryCount reaches maxRetries, the queue must emit a terminal result with
+        // the address moved into `failed`, not silently drop the item.
+        mockMailer.shouldTemporaryFailFor = setOf("always-temp@test.com")
+        queue = RateLimitedMailQueue(mockMailer, rateLimit = 1000, workerCount = 1, scope = scope)
+
+        val collected = java.util.Collections.synchronizedList(mutableListOf<QueuedMailResult>())
+        val collector = scope.launch { queue.results.collect { collected.add(it) } }
+
+        delay(100.milliseconds)
+
+        queue.enqueue(
+            MailQueueItem(
+                reference = "exhausted-ref",
+                mail = Mail("s@test.com", "always-temp@test.com", "Subject", "Content"),
+                maxRetries = 1
+            )
+        )
+
+        // Wait long enough for: initial attempt + 1 retry (~1s exponential backoff) + processing margin
+        withTimeout(8.seconds) {
+            while (collected.none {
+                    it.reference == "exhausted-ref" &&
+                        it.result.failed.contains("always-temp@test.com") &&
+                        it.result.temporary.isEmpty()
+                }) {
+                delay(50.milliseconds)
+            }
+        }
+
+        collector.cancel()
+
+        val terminal = collected.last { it.reference == "exhausted-ref" }
+        assertTrue(
+            terminal.result.failed.contains("always-temp@test.com"),
+            "Terminal emission must move the address into `failed`; got $terminal"
+        )
+        assertTrue(
+            terminal.result.temporary.isEmpty(),
+            "Terminal emission must clear `temporary`; got $terminal"
+        )
+    }
+
+    @Test
+    fun `cancellation in mailer should not be reported as a phantom failure`() = runBlocking {
+        // Given: a mailer that throws CancellationException (simulating cooperative cancellation
+        // from the underlying transport, e.g. an HTTP client cancelled mid-request).
+        // The queue's outer catch must rethrow CancellationException rather than emitting a
+        // bogus "failed" result with reason swallowed.
+        val cancellingMailer = object : Mailer {
+            override suspend fun sendEmail(
+                to: String,
+                from: String,
+                subject: String,
+                content: String,
+                attachments: List<Attachment>
+            ): SendOperationResult {
+                throw CancellationException("simulated cancellation")
+            }
+
+            override suspend fun sendEmails(mails: List<Mail>): SendOperationResult =
+                SendOperationResult()
+        }
+
+        val isolatedScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val isolatedQueue = RateLimitedMailQueue(
+            cancellingMailer,
+            rateLimit = 1000,
+            workerCount = 1,
+            scope = isolatedScope
+        )
+
+        try {
+            val collected = java.util.Collections.synchronizedList(mutableListOf<QueuedMailResult>())
+            val collector = scope.launch { isolatedQueue.results.collect { collected.add(it) } }
+
+            // Let the collector subscribe before enqueueing
+            delay(100.milliseconds)
+
+            isolatedQueue.enqueue(
+                MailQueueItem(
+                    reference = "phantom-ref",
+                    mail = Mail("s@test.com", "to@test.com", "S", "C")
+                )
+            )
+
+            // Give the worker time to pick up and "fail" via cancellation
+            delay(500.milliseconds)
+
+            val phantomEmissions = collected.filter { it.reference == "phantom-ref" }
+            assertTrue(
+                phantomEmissions.isEmpty(),
+                "CancellationException must not be swallowed and reported as a phantom failure; got: $phantomEmissions"
+            )
+
+            collector.cancel()
+        } finally {
+            isolatedQueue.shutdown()
+            isolatedScope.cancel()
+        }
+    }
+
+    @Test
     fun `enqueueAll should add all items to queue`() = runBlocking {
         // Given: Queue with worker pool
         queue = RateLimitedMailQueue(mockMailer, rateLimit = 100, workerCount = 3, scope = scope)
