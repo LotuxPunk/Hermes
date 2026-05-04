@@ -42,4 +42,5 @@ out/
 /scratch
 
 ### Claude ###
-.claude/
+.claude/*
+!.claude/skills/
