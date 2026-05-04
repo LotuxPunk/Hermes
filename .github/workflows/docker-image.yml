@@ -1,48 +1,114 @@
-name: Docker Image CI
+name: Release Docker image
 
 on:
   push:
+    # Only semver release tags. Pre-releases (-rc, -alpha, ...) are accepted by the
+    # trigger; the metadata action below decides whether they get the `:latest` tag.
     tags:
-      - '*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing git tag to (re-)publish, e.g. v2.0.0'
+        required: true
+        type: string
 
+permissions:
+  contents: read
 
 jobs:
-  docker:
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Get the version
-        id: get_version
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '21'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+  publish:
+    name: Build & publish image
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Resolve ref to checkout
+        id: resolve
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ref=refs/tags/${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo ::set-output name=VERSION::latest
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.ref }}
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GHCR_TOKEN }}
-      - name: Build and push
-        uses: docker/build-push-action@v5
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags & labels
+        id: meta
+        uses: docker/metadata-action@v5
         with:
+          images: |
+            lotuxpunk/hermes
+            ghcr.io/lotuxpunk/hermes
+          tags: |
+            # full semver, e.g. v1.2.3 -> 1.2.3
+            type=semver,pattern={{version}}
+            # major.minor, e.g. v1.2.3 -> 1.2
+            type=semver,pattern={{major}}.{{minor}}
+            # `latest` only on stable semver tags (no -rc / -alpha / -beta suffix)
+            type=raw,value=latest,enable=${{ !contains(steps.resolve.outputs.ref, '-') }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: |
-            lotuxpunk/hermes:${{ steps.get_version.outputs.VERSION }}
-            lotuxpunk/hermes:latest
-            ghcr.io/lotuxpunk/hermes:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/lotuxpunk/hermes:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
