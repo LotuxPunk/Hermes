@@ -1,0 +1,91 @@
+name: Daily Automated Review
+
+on:
+  schedule:
+    # 6PM UTC every day
+    - cron: "0 18 * * *"
+  # Allow manual runs for testing / ad-hoc reviews
+  workflow_dispatch:
+
+jobs:
+  detect-activity:
+    name: Detect commits in last 24h on master
+    runs-on: ubuntu-latest
+    outputs:
+      commit_count: ${{ steps.detect.outputs.commit_count }}
+      commit_log: ${{ steps.detect.outputs.commit_log }}
+      commit_range: ${{ steps.detect.outputs.commit_range }}
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          # Need full history so `git log --since` is accurate against master
+          fetch-depth: 0
+
+      - name: Detect commits since 24h ago
+        id: detect
+        run: |
+          set -euo pipefail
+
+          SINCE="24 hours ago"
+          COUNT=$(git log --since="$SINCE" --oneline master | wc -l | tr -d ' ')
+          echo "commit_count=$COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$COUNT" -gt 0 ]; then
+            OLDEST=$(git log --since="$SINCE" --reverse --format=%H master | head -n 1)
+            NEWEST=$(git rev-parse master)
+            echo "commit_range=${OLDEST}^..${NEWEST}" >> "$GITHUB_OUTPUT"
+            {
+              echo 'commit_log<<COMMIT_LOG_EOF'
+              git log --since="$SINCE" --pretty=format:'%h %s (%an)' master
+              echo
+              echo COMMIT_LOG_EOF
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "commit_range=" >> "$GITHUB_OUTPUT"
+            echo "commit_log=(no commits in last 24h)" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "----- Activity report -----"
+          echo "Commits in last 24h on master: $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            git log --since="$SINCE" --pretty=format:'%h %s (%an)' master
+            echo
+          fi
+
+  review:
+    name: Run automated review
+    needs: detect-activity
+    if: needs.detect-activity.outputs.commit_count != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout master (rebased to latest)
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Run Claude Code review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Opus 4.7 with the xhigh reasoning-effort tier
+          claude_args: '--model claude-opus-4-7 --effort xhigh'
+          prompt: |
+            Run the `daily-review` skill (defined at `.claude/skills/daily-review/SKILL.md`).
+
+            Workflow-supplied context for this run:
+            - Commit count in last 24h on master: ${{ needs.detect-activity.outputs.commit_count }}
+            - Commit range: ${{ needs.detect-activity.outputs.commit_range }}
+            - Commits:
+            ${{ needs.detect-activity.outputs.commit_log }}
+
+            Follow the skill's procedure exactly. The skill is the source of truth for
+            scope, severity definitions, issue title/body format, and what you must
+            not do. Do not deviate.
