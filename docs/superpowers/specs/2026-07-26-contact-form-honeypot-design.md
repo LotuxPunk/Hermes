@@ -68,8 +68,17 @@ success response rather than a `429` that would confirm the form is live and bus
 ## Token format
 
 ```
-base64url(payload) + "." + base64url(HMAC-SHA256(payload, secretKey))
+p = base64url(payloadJsonBytes)
+token = p + "." + base64url(HMAC-SHA256(p.toByteArray(US_ASCII), secretKey))
 ```
+
+**The HMAC is computed over the ASCII bytes of the base64url segment `p`, not over the raw
+JSON bytes.** This is JWT's approach and the reason matters: signing the raw JSON would
+make verification depend on re-serializing the decoded object byte-identically to how it
+was written — any change in key order, whitespace, or kotlinx defaults would silently
+invalidate every existing token. Signing the transmitted text has no such dependency. On
+verification the signature is checked against `p` exactly as received, before `p` is
+decoded at all.
 
 Base64url is unpadded (`Base64.getUrlEncoder().withoutPadding()`). The payload is:
 
