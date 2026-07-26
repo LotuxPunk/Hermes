@@ -6,7 +6,9 @@ import com.vandeas.service.Honeypot
 import com.vandeas.service.HoneypotResult
 import io.github.reactivecircus.cache4k.Cache
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.Mac
@@ -14,6 +16,7 @@ import javax.crypto.spec.SecretKeySpec
 import kotlin.text.Charsets.US_ASCII
 import kotlin.text.Charsets.UTF_8
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Stateless-except-for-nonces honeypot.
@@ -80,7 +83,49 @@ class HmacHoneypot(
         expectedConfigId: String,
         token: String?,
         submitted: Map<String, String>,
-    ): HoneypotResult = HoneypotResult.InvalidToken("not implemented")
+    ): HoneypotResult {
+        // 1 — structure
+        if (token.isNullOrBlank()) return HoneypotResult.InvalidToken("missing honeypot token")
+        val segments = token.split('.')
+        if (segments.size != 2) return HoneypotResult.InvalidToken("malformed honeypot token")
+        val (encodedPayload, encodedSignature) = segments
+
+        // 2 — authenticate before decoding anything the client controls
+        val providedSignature = runCatching { decoder.decode(encodedSignature) }.getOrNull()
+            ?: return HoneypotResult.InvalidToken("malformed honeypot signature")
+        if (!MessageDigest.isEqual(sign(encodedPayload, config.secretKey), providedSignature)) {
+            return HoneypotResult.InvalidToken("honeypot signature mismatch")
+        }
+
+        // 3 — now the payload is trustworthy enough to parse
+        val payload = runCatching {
+            Json.decodeFromString<HoneypotTokenPayload>(String(decoder.decode(encodedPayload), UTF_8))
+        }.getOrNull() ?: return HoneypotResult.InvalidToken("malformed honeypot payload")
+
+        // 4 — bound to one form
+        if (payload.cid != expectedConfigId) {
+            return HoneypotResult.InvalidToken("honeypot token issued for a different config")
+        }
+
+        // 5 — freshness
+        val age = (now() - payload.iat).milliseconds
+        if (age.isNegative()) return HoneypotResult.InvalidToken("honeypot token issued in the future")
+        if (age > config.maxAge) return HoneypotResult.InvalidToken("honeypot token expired")
+
+        // 6 — single use. Consumed before the trap checks, so tripping a trap burns the token.
+        val consumed = nonceMutex.withLock {
+            (nonces.get(payload.n) != null).also { present -> if (present) nonces.invalidate(payload.n) }
+        }
+        if (!consumed) return HoneypotResult.InvalidToken("honeypot token already used or unknown")
+
+        // 7 — no human fills a form this fast
+        if (age < config.minDwell) return HoneypotResult.Trapped
+
+        // 8 — every declared trap field must have come back present and blank
+        if (payload.f.any { field -> submitted[field]?.isBlank() != true }) return HoneypotResult.Trapped
+
+        return HoneypotResult.Pass
+    }
 
     /**
      * HMAC over the ASCII bytes of the base64url segment, not the raw JSON — so verification
