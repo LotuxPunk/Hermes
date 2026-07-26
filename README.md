@@ -15,6 +15,8 @@ Mailer micro-service for vandeas
     - [Example of `MAIL_CONFIGS_FOLDER` Configuration Files](#example-of-mail_configs_folder-configuration-files)
   - [Mail Template](#mail-template)
 - [API Reference](#api-reference)
+  - [Get a Honeypot Form Session](#get-a-honeypot-form-session)
+    - [GET `/v1/mail/contact/{configId}/form-session`](#get-v1mailcontactconfigidform-session)
   - [Send Contact Form Using Contact Form Configuration](#send-contact-form-using-contact-form-configuration)
     - [POST `/v1/mail/contact`](#post-v1mailcontact)
     - [Body Parameters](#body-parameters)
@@ -123,6 +125,29 @@ Contact forms support captcha validation with the following providers:
 
 Filename does not have to respect any convention.
 
+##### Honeypot (optional)
+
+Add a `honeypot` block to a contact form config to enable spam filtering with randomized
+hidden fields bound to an HMAC-signed single-use token. Omit the block to disable it.
+
+```json
+"honeypot": {
+    "secretKey": "<A_LONG_RANDOM_STRING>",
+    "fieldCount": 2,
+    "minDwellMillis": 2000,
+    "maxAgeMillis": 1800000
+}
+```
+
+| Field | Default | Description |
+|:------|:--------|:------------|
+| `secretKey` | **required** | HMAC-SHA256 signing key for this form's tokens |
+| `fieldCount` | `2` | Number of hidden trap fields issued per session |
+| `minDwellMillis` | `2000` | Submissions faster than this are treated as bots |
+| `maxAgeMillis` | `1800000` | How long an issued token stays valid |
+
+The honeypot stacks with captcha — a form can use either, both, or neither.
+
 ### Mail config
 
 #### Example of `MAIL_CONFIGS_FOLDER` configuration files
@@ -158,6 +183,83 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 
 ### API Reference
 
+#### Get a honeypot form session
+
+**GET** `/v1/mail/contact/{configId}/form-session`
+
+Required before submitting a contact form whose config has a `honeypot` block. Returns the
+hidden field names to render and the signed token to submit back. Each token is valid for
+a single submission.
+
+##### Response
+
+```json
+{
+    "token": "eyJjaWQiOiJhYmMtMTIzIi...<payload>.<signature>",
+    "fields": ["a7f3kd", "qm2x9p"],
+    "issuedAt": 1774483200000
+}
+```
+
+| Status | Meaning |
+|:-------|:--------|
+| `200`  | Session issued |
+| `400`  | Config exists but has no `honeypot` block |
+| `404`  | No contact form config with that id |
+
+##### Client integration
+
+```html
+<form id="contact">
+  <input name="fullName" required>
+  <input name="email" type="email" required>
+  <textarea name="content" required></textarea>
+  <div id="hp"></div>
+</form>
+
+<script>
+const CONFIG_ID = "your-config-id";
+let session;
+
+// Fetch on page load so the minDwell timer starts when the visitor arrives.
+fetch(`https://hermes.example.com/v1/mail/contact/${CONFIG_ID}/form-session`)
+  .then(r => r.json())
+  .then(s => {
+    session = s;
+    document.getElementById("hp").innerHTML = s.fields.map(name =>
+      `<input name="${name}" autocomplete="off" tabindex="-1" aria-hidden="true"
+              style="position:absolute;left:-9999px">`
+    ).join("");
+  });
+
+document.getElementById("contact").addEventListener("submit", async event => {
+  event.preventDefault();
+  const data = new FormData(event.target);
+  const honeypot = {};
+  session.fields.forEach(name => honeypot[name] = data.get(name) ?? "");
+
+  await fetch("https://hermes.example.com/v1/mail/contact", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      captcha: "GOOGLE_RECAPTCHA",
+      id: CONFIG_ID,
+      fullName: data.get("fullName"),
+      email: data.get("email"),
+      content: data.get("content"),
+      recaptchaToken: await grecaptcha.execute(),
+      honeypotToken: session.token,
+      honeypot
+    })
+  });
+});
+</script>
+```
+
+Hide the trap fields with off-screen positioning rather than `type="hidden"` or
+`display:none` — some bots skip both. Always set `autocomplete="off"`, or a browser may
+autofill a trap field and get a real enquiry silently discarded.
+
 #### Send contact form using contact form configuration
 
 **POST** `/v1/mail/contact`
@@ -171,6 +273,8 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 | `email`          | `string` | **Required** Email of the person that sent the form     |
 | `content`        | `string` | **Required** Content of the message                     |
 | `recaptchaToken` | `string` | **Required** Result token/secret of recaptcha           |
+| `honeypotToken`  | `string` | Required when the config has a `honeypot` block. Token from the form-session endpoint |
+| `honeypot`       | `object` | Required when the config has a `honeypot` block. Map of the issued field names to their submitted values |
 
 #### Send mail using mail configuration
 

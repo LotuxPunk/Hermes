@@ -146,7 +146,7 @@ Logged at `WARN` with the config id and which check tripped.
 | `dto/HoneypotSession.kt` | Endpoint response DTO |
 | `dto/configs/honeypot/HoneypotConfig.kt` | Per-form config block |
 | `config/DurationMillisSerializer.kt` | `Duration` ⇄ millis |
-| `logic/HoneypotLogic.kt`, `logic/impl/HoneypotLogicImpl.kt` | Session issuance, mirrors `KerberusLogic` |
+| `logic/HoneypotLogic.kt`, `logic/impl/HoneypotLogicImpl.kt` | Session issuance. `getSession` is not `suspend` — neither `ConfigDirectory.get` nor `Honeypot.issue` suspends. |
 
 ```kotlin
 interface Honeypot {
@@ -322,33 +322,49 @@ same latent gap; fixing them is not part of this change.
 
 ## Testing
 
-`HmacHoneypotTest` — fixed clock and deterministic random injected, one case per row of
-the validation table:
+46 new tests, 76 total:
 
-- issue → validate round trip passes
-- `issue` returns `fieldCount` distinct names matching `[a-z][a-z0-9]{7}`
-- malformed token: null, no separator, three parts, non-base64 segment
-- tampered payload (valid base64, wrong signature)
-- tampered signature
-- token minted for a different `cid`
-- expired (`now` advanced past `maxAge`)
-- future-dated (`iat` ahead of `now`)
-- replay: second `validate` of the same token fails at step 6
-- submitted too fast (below `minDwell`) → `Trapped`
-- a declared field with content → `Trapped`
-- a declared field missing from the map → `Trapped`
-- whitespace-only value → `Trapped`
-- undeclared extra keys present → `Pass`
+| File | Count | Covers |
+|---|---|---|
+| `config/DurationMillisSerializerTest` | 6 | Millis encode/decode round trip, sub-millisecond truncation, zero, large values |
+| `dto/configs/ContactFormConfigHoneypotTest` | 4 | Config (de)serialization: absent block, explicit values, defaults, SMTP variant |
+| `dto/ContactFormHoneypotSerializationTest` | 3 | `ContactForm` (de)serialization: absent fields, present fields, Kerberus variant |
+| `service/impl/honeypot/HmacHoneypotIssueTest` | 6 | `issue`: field count/distinctness/shape, `issuedAt`, token structure, uniqueness across sessions and secrets |
+| `service/impl/honeypot/HmacHoneypotValidateTest` | 22 | One case per row of the validation table, plus edge cases (below) |
+| `logic/impl/MailLogicImplHoneypotTest` | 5 | Boundary behaviour at the `MailLogicImpl` seam (below) |
 
-`MailLogicImplHoneypotTest` — hand-written `ConfigDirectory`, `DailyLimiter` and `Mailer`
+`HmacHoneypotValidateTest` — fixed clock and deterministic random injected:
+
+- accepts a well-formed submission, and one exactly at `maxAge`
+- rejects: null token, blank token, no separator, three segments, non-base64 signature,
+  tampered signature, an edited payload, a token signed with a different secret, a token
+  issued for a different `cid`, an expired token, a future-dated token, a replayed token,
+  a token this instance never issued
+- traps: faster than `minDwell`, a filled trap field, a missing trap field, a
+  whitespace-only value (still counts as blank)
+- ignores undeclared extra fields (`Pass`)
+- a trapped submission still consumes its token
+- rejection reasons are non-empty
+
+`MailLogicImplHoneypotTest` — hand-written `ConfigDirectory`, `DailyLimiter` and `Honeypot`
 fakes (no mock library is on the test classpath; deps are `kotlin-test-junit` and
 `ktor-server-test-host`). Asserts the boundary behaviours:
 
-- trapped submission returns a `SENT`-shaped result **and** the fake mailer records zero
-  sends **and** `recordMailSent` was not called
-- invalid token propagates so the route yields `403`
-- config with `honeypot == null` ignores a supplied token and sends normally
-- honeypot passing still runs the captcha check
+- a trapped submission returns a `SENT`-shaped result **and** the fake limiter's
+  `recordMailSent` was never called
+- a trapped submission still echoes explicit `destinations` in the response
+- an invalid token propagates as `HoneypotRejectedException` (→ `403` at the route)
+- the honeypot layer is skipped when the config has no `honeypot` block — proved by
+  pairing a denying limiter with a `Honeypot` fake that errors if it is called at all
+- a passing honeypot falls through to the daily-limit check before any mail is recorded
+  as sent
+
+`Config.toMailer()` reads `Constants`, whose initializer NPEs when the config-folder env
+vars are unset, so no test in this suite may construct a mailer. That is why
+`MailLogicImplHoneypotTest` proves the "no honeypot configured" and "honeypot passes"
+cases through limiter denial rather than a real send, and why route-level tests are
+excluded entirely — they hit the same `Constants` initializer. Route-level coverage comes
+from the Task 8 manual smoke test instead.
 
 ## Documentation
 
