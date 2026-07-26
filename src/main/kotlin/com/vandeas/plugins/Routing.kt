@@ -7,7 +7,9 @@ import com.vandeas.dto.MailInput
 import com.vandeas.entities.Attachment
 import com.vandeas.entities.MailSendStatus
 import com.vandeas.exception.DailyLimitExceededException
+import com.vandeas.exception.HoneypotRejectedException
 import com.vandeas.exception.RecaptchaFailedException
+import com.vandeas.logic.HoneypotLogic
 import com.vandeas.logic.KerberusLogic
 import com.vandeas.logic.MailLogic
 import io.ktor.http.*
@@ -25,6 +27,7 @@ import org.koin.ktor.ext.inject
 fun Application.configureRouting() {
     val mailLogic by inject<MailLogic>()
     val kerberusLogic by inject<KerberusLogic>()
+    val honeypotLogic by inject<HoneypotLogic>()
 
     install(ContentNegotiation) {
         json()
@@ -38,6 +41,23 @@ fun Application.configureRouting() {
                 } ?: call.respond(HttpStatusCode.BadRequest, "Missing configId parameter")
             }
             route("/mail") {
+                get("/contact/{configId}/form-session") {
+                    try {
+                        val configId = call.parameters["configId"]
+                            ?: throw IllegalArgumentException("Missing configId path parameter")
+
+                        call.respond(HttpStatusCode.OK, honeypotLogic.getSession(configId))
+                    } catch (e: Exception) {
+                        when (e) {
+                            is NoSuchElementException -> call.respond(HttpStatusCode.NotFound, e.message ?: "")
+                            is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
+                            else -> {
+                                application.log.error("Failed to issue honeypot session: ${e.message}")
+                                call.respond(HttpStatusCode.InternalServerError)
+                            }
+                        }
+                    }
+                }
                 post("/contact") {
                     val contactForm = call.receive<ContactForm>()
 
@@ -52,6 +72,8 @@ fun Application.configureRouting() {
                         when (e) {
                             is DailyLimitExceededException -> call.respond(HttpStatusCode.TooManyRequests, e.message)
                             is RecaptchaFailedException -> call.respond(HttpStatusCode.Forbidden, e.message)
+                            is HoneypotRejectedException -> call.respond(HttpStatusCode.Forbidden, e.message ?: "")
+                            is NoSuchElementException -> call.respond(HttpStatusCode.NotFound, e.message ?: "")
                             is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
                             else -> call.respond(HttpStatusCode.InternalServerError)
                         }
