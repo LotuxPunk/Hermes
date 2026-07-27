@@ -9,8 +9,10 @@ Add a spam-filtering layer to `POST /v1/mail/contact` that costs a bot more than
 a legitimate visitor: randomized honeypot fields whose names are issued by the server,
 bound to an HMAC-signed single-use token that the browser can only obtain by running JS.
 
-The layer is independent of the existing captcha providers. A contact form can run
-honeypot only, captcha only, both, or neither.
+The layer is independent of the existing captcha providers. `ContactFormConfig.captcha`
+is non-nullable — every contact form config already requires a captcha provider (Google
+ReCaptcha or Kerberus) — so the honeypot is an additional, optional layer stacked on top
+of the mandatory captcha, never a replacement for it.
 
 ## Threat model
 
@@ -34,14 +36,14 @@ What this does not catch, by design:
 
 | Decision | Choice | Why |
 |---|---|---|
-| Relationship to captcha | Independent layer, stackable | Keeps the two concerns orthogonal; a form can use either, both, or neither |
+| Relationship to captcha | Independent, additional layer on top of the mandatory captcha | Keeps the two concerns orthogonal; captcha is always required (`ContactFormConfig.captcha` is non-nullable), honeypot is an optional add-on |
 | Token delivery | New `GET` endpoint issuing randomized field names + signed token | HMAC needs a server-side secret, so the token must be server-issued |
 | Replay protection | Single-use nonce in an in-memory cache, plus expiry | One fetch buys one attempt; mirrors `KerberusCaptcha.challengeCache` |
 | Failure response | Trap trip → silent success; token error → `403` | A bot learns nothing from a trip; a site owner needs to see a broken integration |
 | Signing secret | Per contact-form config JSON | Mirrors `CaptchaConfig.secretKey`; each form independently rotatable |
 | Duration config | `kotlin.time.Duration`, serialized as millis | Matches the codebase's existing time idiom; millis stays a wire detail |
 | Route | `GET /v1/mail/contact/{configId}/form-session` | Sits next to the endpoint it serves |
-| Field-name style | Opaque random (`a7f3kd`) | Browser autofill can't latch on; a filled trap would silently eat a real enquiry |
+| Field-name style | Opaque random, 8 characters (`a7f3kdx9`) | Browser autofill can't latch on; a filled trap would silently eat a real enquiry |
 | Nonce durability | In-memory, accepted as-is | Same constraint the Kerberus challenge cache already lives with |
 
 ## Flow
@@ -51,12 +53,12 @@ Browser                                  Hermes
    │  GET /v1/mail/contact/{configId}/form-session
    ├────────────────────────────────────────►  generate field names + nonce,
    │                                            sign payload, store nonce
-   │  ◄──── { token, fields: ["a7f3kd", "qm2x9p"], issuedAt }
+   │  ◄──── { token, fields: ["a7f3kdx9", "qm2x9pz1"], issuedAt }
    │
-   │  JS injects CSS-hidden inputs named a7f3kd, qm2x9p
+   │  JS injects CSS-hidden inputs named a7f3kdx9, qm2x9pz1
    │
    │  POST /v1/mail/contact
-   │  { …, honeypotToken, honeypot: { "a7f3kd": "", "qm2x9p": "" } }
+   │  { …, honeypotToken, honeypot: { "a7f3kdx9": "", "qm2x9pz1": "" } }
    ├────────────────────────────────────────►  honeypot → daily limit → captcha → send
 ```
 
@@ -282,7 +284,7 @@ Issues a session. No request body.
 ```json
 {
   "token": "eyJjaWQiOi...<base64url>.<base64url hmac>",
-  "fields": ["a7f3kd", "qm2x9p"],
+  "fields": ["a7f3kdx9", "qm2x9pz1"],
   "issuedAt": 1774483200000
 }
 ```

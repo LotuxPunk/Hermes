@@ -146,7 +146,9 @@ hidden fields bound to an HMAC-signed single-use token. Omit the block to disabl
 | `minDwellMillis` | `2000` | Submissions faster than this are treated as bots |
 | `maxAgeMillis` | `1800000` | How long an issued token stays valid |
 
-The honeypot stacks with captcha — a form can use either, both, or neither.
+Captcha (Google ReCaptcha or Kerberus) is mandatory on every contact form config; the
+honeypot is an additional, optional layer on top of it. A form always runs its captcha
+check, with or without the honeypot.
 
 ### Mail config
 
@@ -196,7 +198,7 @@ a single submission.
 ```json
 {
     "token": "eyJjaWQiOiJhYmMtMTIzIi...<payload>.<signature>",
-    "fields": ["a7f3kd", "qm2x9p"],
+    "fields": ["a7f3kdx9", "qm2x9pz1"],
     "issuedAt": 1774483200000
 }
 ```
@@ -219,22 +221,24 @@ a single submission.
 
 <script>
 const CONFIG_ID = "your-config-id";
-let session;
 
-// Fetch on page load so the minDwell timer starts when the visitor arrives.
-fetch(`https://hermes.example.com/v1/mail/contact/${CONFIG_ID}/form-session`)
+// Fetch on page load so the minDwell timer starts when the visitor arrives. Keep the
+// promise itself (not just its resolved value) so a submit that races ahead of this
+// fetch can await it below instead of reading a not-yet-assigned session and throwing.
+const sessionPromise = fetch(`https://hermes.example.com/v1/mail/contact/${CONFIG_ID}/form-session`)
   .then(r => r.json())
-  .then(s => {
-    session = s;
-    document.getElementById("hp").innerHTML = s.fields.map(name =>
+  .then(session => {
+    document.getElementById("hp").innerHTML = session.fields.map(name =>
       `<input name="${name}" autocomplete="off" tabindex="-1" aria-hidden="true"
               style="position:absolute;left:-9999px">`
     ).join("");
+    return session;
   });
 
 document.getElementById("contact").addEventListener("submit", async event => {
   event.preventDefault();
   const data = new FormData(event.target);
+  const session = await sessionPromise;
   const honeypot = {};
   session.fields.forEach(name => honeypot[name] = data.get(name) ?? "");
 
