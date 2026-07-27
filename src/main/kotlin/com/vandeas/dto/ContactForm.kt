@@ -19,6 +19,12 @@ sealed interface ContactForm {
     val topic: String?
     val content: String
     val destinations: List<String>
+
+    /** Signed session token from `GET /v1/mail/contact/{configId}/form-session`. */
+    val honeypotToken: String?
+
+    /** The issued honeypot field names and whatever the client submitted for them. */
+    val honeypot: Map<String, String>
 }
 
 @SerialName(GOOGLE_RECAPTCHA_SERIAL_NAME)
@@ -32,6 +38,8 @@ data class GoogleRecaptchaContactForm(
     override val topic: String? = null,
     override val destinations: List<String> = emptyList(),
     val recaptchaToken: String,
+    override val honeypotToken: String? = null,
+    override val honeypot: Map<String, String> = emptyMap(),
 ) : ContactForm
 
 @SerialName(KERBERUS_SERIAL_NAME)
@@ -44,5 +52,7 @@ data class KerberusContactForm(
     override val phone: String? = null,
     override val topic: String? = null,
     override val destinations: List<String> = emptyList(),
-    val solution: Solution
+    val solution: Solution,
+    override val honeypotToken: String? = null,
+    override val honeypot: Map<String, String> = emptyMap(),
 ) : ContactForm

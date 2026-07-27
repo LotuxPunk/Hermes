@@ -2,14 +2,18 @@ package com.vandeas.plugins
 
 import com.vandeas.dto.configs.ContactFormConfig
 import com.vandeas.dto.configs.MailConfig
+import com.vandeas.logic.HoneypotLogic
 import com.vandeas.logic.KerberusLogic
 import com.vandeas.logic.MailLogic
+import com.vandeas.logic.impl.HoneypotLogicImpl
 import com.vandeas.logic.impl.KerberusLogicImpl
 import com.vandeas.logic.impl.MailLogicImpl
 import com.vandeas.service.ConfigDirectory
 import com.vandeas.service.DailyLimiter
 import com.vandeas.service.FileHandler
+import com.vandeas.service.Honeypot
 import com.vandeas.service.impl.*
+import com.vandeas.service.impl.honeypot.HmacHoneypot
 import com.vandeas.service.impl.captcha.GoogleReCaptcha
 import com.vandeas.service.impl.captcha.KerberusCaptcha
 import com.vandeas.utils.Constants
@@ -27,11 +31,15 @@ val appModule = module {
     single<DailyLimiter> {
         InMemoryDailyLimiter()
     }
+    single<Honeypot> { HmacHoneypot() }
     single<KerberusLogic> {
         KerberusLogicImpl(get(named("contactFormConfig")))
     }
     single<MailLogic> {
-        MailLogicImpl(get(named("mailConfig")), get(named("contactFormConfig")), get())
+        MailLogicImpl(get(named("mailConfig")), get(named("contactFormConfig")), get(), get())
+    }
+    single<HoneypotLogic> {
+        HoneypotLogicImpl(get(named("contactFormConfig")), get())
     }
     single<FileHandler>(named("template"), true) {
         FileHandlerImpl(Constants.templateDir)

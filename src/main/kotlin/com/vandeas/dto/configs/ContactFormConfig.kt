@@ -1,6 +1,7 @@
 package com.vandeas.dto.configs
 
 import com.vandeas.dto.configs.captcha.CaptchaConfig
+import com.vandeas.dto.configs.honeypot.HoneypotConfig
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -16,6 +17,7 @@ sealed interface ContactFormConfig : Config {
     val lang: String
     val subjectTemplate: String
     val captcha: CaptchaConfig
+    val honeypot: HoneypotConfig?
 }
 
 @Serializable
@@ -28,7 +30,8 @@ data class ResendContactFormConfig(
     override val lang: String,
     override val subjectTemplate: String,
     override val apiKey: String,
-    override val captcha: CaptchaConfig
+    override val captcha: CaptchaConfig,
+    override val honeypot: HoneypotConfig? = null
 ) : ContactFormConfig, ResendProvider()
 
 @Serializable
@@ -44,5 +47,6 @@ data class SMTPContactFormConfig(
     override val password: String,
     override val smtpHost: String,
     override val smtpPort: Int = 587,
-    override val captcha: CaptchaConfig
+    override val captcha: CaptchaConfig,
+    override val honeypot: HoneypotConfig? = null
 ) : ContactFormConfig, SMTPProvider()

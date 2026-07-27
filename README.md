@@ -15,6 +15,8 @@ Mailer micro-service for vandeas
     - [Example of `MAIL_CONFIGS_FOLDER` Configuration Files](#example-of-mail_configs_folder-configuration-files)
   - [Mail Template](#mail-template)
 - [API Reference](#api-reference)
+  - [Get a Honeypot Form Session](#get-a-honeypot-form-session)
+    - [GET `/v1/mail/contact/{configId}/form-session`](#get-v1mailcontactconfigidform-session)
   - [Send Contact Form Using Contact Form Configuration](#send-contact-form-using-contact-form-configuration)
     - [POST `/v1/mail/contact`](#post-v1mailcontact)
     - [Body Parameters](#body-parameters)
@@ -95,11 +97,15 @@ Contact forms support captcha validation with the following providers:
     "dailyLimit": 10,
     "destination": "john@example.com",
     "sender": "doe@example.com",
-    "threshold": 0.5, // ReCaptcha score threshold
-    "lang": "fr", // ISO 639-1
+    "lang": "fr",
     "subjectTemplate": "New mail from {{form.firstName}}",
     "provider": "RESEND",
-    "apiKey": "<YOUR_RESEND_API_KEY>"
+    "apiKey": "<YOUR_RESEND_API_KEY>",
+    "captcha": {
+        "provider": "GOOGLE_RECAPTCHA",
+        "secretKey": "<YOUR_RECAPTCHA_SECRET>",
+        "threshold": 0.5
+    }
 }
 ```
 
@@ -110,18 +116,50 @@ Contact forms support captcha validation with the following providers:
     "dailyLimit": 10,
     "destination": "john@example.com",
     "sender": "doe@example.com",
-    "threshold": 0.5, // ReCaptcha score threshold
-    "lang": "fr", // ISO 639-1
+    "lang": "fr",
     "subjectTemplate": "New mail from {{form.firstName}}",
     "provider": "SMTP",
     "username": "<SMTP_USERNAME>",
     "password": "<SMTP_PASSWORD>",
     "smtpHost": "<SMTP_SERVER_IP>",
-    "smtpPort": "<SMTP_SERVER_PORT>"
+    "smtpPort": 587,
+    "captcha": {
+        "provider": "KERBERUS",
+        "secretKey": "<YOUR_KERBERUS_SECRET>"
+    }
 }
 ```
 
+`lang` is an ISO 639-1 code (e.g. `fr`, `en`). `captcha` is **required** on every contact
+form config; its `provider` is either `GOOGLE_RECAPTCHA` (with a `threshold` score) or
+`KERBERUS`, per the two captcha providers listed above.
+
 Filename does not have to respect any convention.
+
+##### Honeypot (optional)
+
+Add a `honeypot` block to a contact form config to enable spam filtering with randomized
+hidden fields bound to an HMAC-signed single-use token. Omit the block to disable it.
+
+```json
+"honeypot": {
+    "secretKey": "<A_LONG_RANDOM_STRING>",
+    "fieldCount": 2,
+    "minDwellMillis": 2000,
+    "maxAgeMillis": 1800000
+}
+```
+
+| Field | Default | Description |
+|:------|:--------|:------------|
+| `secretKey` | **required** | HMAC-SHA256 signing key for this form's tokens |
+| `fieldCount` | `2` | Number of hidden trap fields issued per session (max `32`) |
+| `minDwellMillis` | `2000` | Submissions faster than this are treated as bots |
+| `maxAgeMillis` | `1800000` | How long an issued token stays valid. Capped at one hour (`3600000`) — the nonce cache that backs single-use enforcement evicts entries after an hour regardless of this value, so a config setting a longer `maxAge` is rejected at session issuance |
+
+Captcha (Google ReCaptcha or Kerberus) is mandatory on every contact form config; the
+honeypot is an additional, optional layer on top of it. A form always runs its captcha
+check, with or without the honeypot.
 
 ### Mail config
 
@@ -158,6 +196,90 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 
 ### API Reference
 
+#### Get a honeypot form session
+
+**GET** `/v1/mail/contact/{configId}/form-session`
+
+Required before submitting a contact form whose config has a `honeypot` block. Returns the
+hidden field names to render and the signed token to submit back. Each token is valid for
+a single submission.
+
+##### Response
+
+```json
+{
+    "token": "eyJjaWQiOiJhYmMtMTIzIi...<payload>.<signature>",
+    "fields": ["a7f3kdx9", "qm2x9pz1"],
+    "issuedAt": 1774483200000
+}
+```
+
+| Status | Meaning |
+|:-------|:--------|
+| `200`  | Session issued |
+| `400`  | Config exists but has no `honeypot` block |
+| `404`  | No contact form config with that id |
+
+##### Client integration
+
+```html
+<form id="contact">
+  <input name="fullName" required>
+  <input name="email" type="email" required>
+  <textarea name="content" required></textarea>
+  <div id="hp"></div>
+</form>
+
+<script>
+const CONFIG_ID = "your-config-id";
+
+// Fetch on page load so the minDwell timer starts when the visitor arrives. Keep the
+// promise itself (not just its resolved value) so a submit that races ahead of this
+// fetch can await it below instead of reading a not-yet-assigned session and throwing.
+const sessionPromise = fetch(`https://hermes.example.com/v1/mail/contact/${CONFIG_ID}/form-session`)
+  .then(r => r.json())
+  .then(session => {
+    document.getElementById("hp").innerHTML = session.fields.map(name =>
+      `<input name="${name}" autocomplete="off" tabindex="-1" aria-hidden="true"
+              style="position:absolute;left:-9999px">`
+    ).join("");
+    return session;
+  });
+
+document.getElementById("contact").addEventListener("submit", async event => {
+  event.preventDefault();
+  const data = new FormData(event.target);
+  const session = await sessionPromise;
+  const honeypot = {};
+  session.fields.forEach(name => honeypot[name] = data.get(name) ?? "");
+
+  await fetch("https://hermes.example.com/v1/mail/contact", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      captcha: "GOOGLE_RECAPTCHA",
+      id: CONFIG_ID,
+      fullName: data.get("fullName"),
+      email: data.get("email"),
+      content: data.get("content"),
+      recaptchaToken: await grecaptcha.execute(),
+      honeypotToken: session.token,
+      honeypot
+    })
+  });
+});
+</script>
+```
+
+Hide the trap fields with off-screen positioning rather than `type="hidden"` or
+`display:none` — some bots skip both. Always set `autocomplete="off"`, or a browser may
+autofill a trap field and get a real enquiry silently discarded.
+
+Config changes (a rotated `secretKey`, a newly added `honeypot` block) take effect
+immediately and hard-403 any visitor who already has the page open with a session issued
+under the old settings — so on a 403 from `POST /v1/mail/contact`, re-fetch `form-session`
+once and retry the submission before surfacing an error to the visitor.
+
 #### Send contact form using contact form configuration
 
 **POST** `/v1/mail/contact`
@@ -171,6 +293,8 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 | `email`          | `string` | **Required** Email of the person that sent the form     |
 | `content`        | `string` | **Required** Content of the message                     |
 | `recaptchaToken` | `string` | **Required** Result token/secret of recaptcha           |
+| `honeypotToken`  | `string` | Required when the config has a `honeypot` block. Token from the form-session endpoint |
+| `honeypot`       | `object` | Required when the config has a `honeypot` block. Map of the issued field names to their submitted values |
 
 #### Send mail using mail configuration
 

@@ -13,9 +13,12 @@ import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.exception.DailyLimitExceededException
+import com.vandeas.exception.HoneypotRejectedException
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.MailLogic
 import com.vandeas.service.*
+import com.vandeas.service.Honeypot
+import com.vandeas.service.HoneypotResult
 import com.vandeas.service.impl.captcha.GoogleReCaptcha
 import com.vandeas.service.impl.captcha.KerberusCaptcha
 import kotlinx.coroutines.Dispatchers
@@ -23,16 +26,19 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import com.vandeas.service.TemplateRenderer
+import org.slf4j.LoggerFactory
 
 class MailLogicImpl(
     private val mailConfigHandler: ConfigDirectory<MailConfig>,
     private val contactFormConfigHandler: ConfigDirectory<ContactFormConfig>,
-    private val limiter: DailyLimiter
+    private val limiter: DailyLimiter,
+    private val honeypot: Honeypot,
 ) : MailLogic {
 
     companion object {
         private const val RESEND_BATCH_LIMIT = 100
         private const val BROADCAST_RECIPIENT_LIMIT = 50
+        private val logger = LoggerFactory.getLogger(MailLogicImpl::class.java)
     }
 
     private val mailers: MutableMap<String, Mailer> = mutableMapOf() //TODO: Update mailers on config change/deletion
@@ -41,6 +47,21 @@ class MailLogicImpl(
 
     override suspend fun sendContactForm(form: ContactForm): SendOperationResult {
         val config = contactFormConfigHandler.get(form.id)
+
+        config.honeypot?.let { honeypotConfig ->
+            when (val result = honeypot.validate(honeypotConfig, form.id, form.honeypotToken, form.honeypot)) {
+                is HoneypotResult.InvalidToken -> throw HoneypotRejectedException(result.reason)
+                is HoneypotResult.Trapped -> {
+                    logger.warn(
+                        "Honeypot trapped a contact form submission for config {}: {}",
+                        config.id,
+                        result.reason,
+                    )
+                    return SendOperationResult(sent = form.resolveDestinations(config))
+                }
+                HoneypotResult.Pass -> Unit
+            }
+        }
 
         if (!limiter.canSendMail(config)) {
             throw DailyLimitExceededException(config.dailyLimit)
@@ -65,25 +86,21 @@ class MailLogicImpl(
         val content = TemplateRenderer.renderHtml(contactFormConfigHandler.getTemplate(config.id), context)
 
         return mailer.sendEmailsWithRetry(
-            mails = form.destinations.takeIf { it.isNotEmpty() }?.map { destination ->
+            mails = form.resolveDestinations(config).map { destination ->
                 Mail(
                     from = config.sender,
                     to = destination,
                     subject = subject,
                     content = content
                 )
-            } ?: listOf(
-                Mail(
-                    from = config.sender,
-                    to = config.destination,
-                    subject = subject,
-                    content = content
-                )
-            ),
+            },
             maxRetries = 3,
             retryDelayMs = 1000L
         )
     }
+
+    private fun ContactForm.resolveDestinations(config: ContactFormConfig): List<String> =
+        destinations.takeIf { it.isNotEmpty() } ?: listOf(config.destination)
 
     override suspend fun sendMail(mailInput: MailInput, attachments: List<Attachment>): SendOperationResult {
         val config = mailConfigHandler.get(mailInput.id)
