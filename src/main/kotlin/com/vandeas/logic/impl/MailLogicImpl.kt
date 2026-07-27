@@ -51,8 +51,12 @@ class MailLogicImpl(
         config.honeypot?.let { honeypotConfig ->
             when (val result = honeypot.validate(honeypotConfig, form.id, form.honeypotToken, form.honeypot)) {
                 is HoneypotResult.InvalidToken -> throw HoneypotRejectedException(result.reason)
-                HoneypotResult.Trapped -> {
-                    logger.warn("Honeypot trapped a contact form submission for config {}", config.id)
+                is HoneypotResult.Trapped -> {
+                    logger.warn(
+                        "Honeypot trapped a contact form submission for config {}: {}",
+                        config.id,
+                        result.reason,
+                    )
                     return SendOperationResult(sent = form.resolveDestinations(config))
                 }
                 HoneypotResult.Pass -> Unit

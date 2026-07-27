@@ -97,11 +97,15 @@ Contact forms support captcha validation with the following providers:
     "dailyLimit": 10,
     "destination": "john@example.com",
     "sender": "doe@example.com",
-    "threshold": 0.5, // ReCaptcha score threshold
-    "lang": "fr", // ISO 639-1
+    "lang": "fr",
     "subjectTemplate": "New mail from {{form.firstName}}",
     "provider": "RESEND",
-    "apiKey": "<YOUR_RESEND_API_KEY>"
+    "apiKey": "<YOUR_RESEND_API_KEY>",
+    "captcha": {
+        "provider": "GOOGLE_RECAPTCHA",
+        "secretKey": "<YOUR_RECAPTCHA_SECRET>",
+        "threshold": 0.5
+    }
 }
 ```
 
@@ -112,16 +116,23 @@ Contact forms support captcha validation with the following providers:
     "dailyLimit": 10,
     "destination": "john@example.com",
     "sender": "doe@example.com",
-    "threshold": 0.5, // ReCaptcha score threshold
-    "lang": "fr", // ISO 639-1
+    "lang": "fr",
     "subjectTemplate": "New mail from {{form.firstName}}",
     "provider": "SMTP",
     "username": "<SMTP_USERNAME>",
     "password": "<SMTP_PASSWORD>",
     "smtpHost": "<SMTP_SERVER_IP>",
-    "smtpPort": "<SMTP_SERVER_PORT>"
+    "smtpPort": 587,
+    "captcha": {
+        "provider": "KERBERUS",
+        "secretKey": "<YOUR_KERBERUS_SECRET>"
+    }
 }
 ```
+
+`lang` is an ISO 639-1 code (e.g. `fr`, `en`). `captcha` is **required** on every contact
+form config; its `provider` is either `GOOGLE_RECAPTCHA` (with a `threshold` score) or
+`KERBERUS`, per the two captcha providers listed above.
 
 Filename does not have to respect any convention.
 
@@ -142,9 +153,9 @@ hidden fields bound to an HMAC-signed single-use token. Omit the block to disabl
 | Field | Default | Description |
 |:------|:--------|:------------|
 | `secretKey` | **required** | HMAC-SHA256 signing key for this form's tokens |
-| `fieldCount` | `2` | Number of hidden trap fields issued per session |
+| `fieldCount` | `2` | Number of hidden trap fields issued per session (max `32`) |
 | `minDwellMillis` | `2000` | Submissions faster than this are treated as bots |
-| `maxAgeMillis` | `1800000` | How long an issued token stays valid |
+| `maxAgeMillis` | `1800000` | How long an issued token stays valid. Capped at one hour (`3600000`) — the nonce cache that backs single-use enforcement evicts entries after an hour regardless of this value, so a config setting a longer `maxAge` is rejected at session issuance |
 
 Captcha (Google ReCaptcha or Kerberus) is mandatory on every contact form config; the
 honeypot is an additional, optional layer on top of it. A form always runs its captcha
@@ -263,6 +274,11 @@ document.getElementById("contact").addEventListener("submit", async event => {
 Hide the trap fields with off-screen positioning rather than `type="hidden"` or
 `display:none` — some bots skip both. Always set `autocomplete="off"`, or a browser may
 autofill a trap field and get a real enquiry silently discarded.
+
+Config changes (a rotated `secretKey`, a newly added `honeypot` block) take effect
+immediately and hard-403 any visitor who already has the page open with a session issued
+under the old settings — so on a 403 from `POST /v1/mail/contact`, re-fetch `form-session`
+once and retry the submission before surfacing an error to the visitor.
 
 #### Send contact form using contact form configuration
 

@@ -108,7 +108,7 @@ class MailLogicImplHoneypotTest {
     @Test
     fun `a trapped submission reports success without sending or consuming quota`() = runBlocking {
         val limiter = RecordingLimiter()
-        val result = logic(config(), StubHoneypot(HoneypotResult.Trapped), limiter)
+        val result = logic(config(), StubHoneypot(HoneypotResult.Trapped("field: a trap field was filled in or missing")), limiter)
             .sendContactForm(form())
 
         assertEquals(MailSendStatus.SENT, result.status)
@@ -119,7 +119,7 @@ class MailLogicImplHoneypotTest {
 
     @Test
     fun `a trapped submission echoes explicit destinations`() = runBlocking {
-        val result = logic(config(), StubHoneypot(HoneypotResult.Trapped), RecordingLimiter())
+        val result = logic(config(), StubHoneypot(HoneypotResult.Trapped("field: a trap field was filled in or missing")), RecordingLimiter())
             .sendContactForm(form(destinations = listOf("a@example.com", "b@example.com")))
 
         assertEquals(listOf("a@example.com", "b@example.com"), result.sent)

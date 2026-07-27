@@ -29,6 +29,12 @@ sealed interface HoneypotResult {
     /** Structurally bad, expired or replayed token — surfaced to the caller as 403. */
     data class InvalidToken(val reason: String) : HoneypotResult
 
-    /** A trap field was filled or the form came back too fast — answered with a fake success. */
-    data object Trapped : HoneypotResult
+    /**
+     * A trap field was filled or the form came back too fast — answered with a fake success
+     * indistinguishable from [Pass] at the HTTP layer.
+     *
+     * @property reason which check tripped (dwell vs. field), for the server log only. It
+     * must never reach the client, or the indistinguishability the design relies on breaks.
+     */
+    data class Trapped(val reason: String) : HoneypotResult
 }

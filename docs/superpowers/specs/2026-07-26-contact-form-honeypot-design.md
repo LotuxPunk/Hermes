@@ -210,10 +210,14 @@ prefix, so a bot cannot regex the trap fields out of the form.
 
 ### Concurrency
 
-Nonces live in one `Cache<String, Unit>` inside `HmacHoneypot`:
-`expireAfterWrite(1.hours)` as a ceiling, with the per-config `maxAge` enforced from
-`iat`, plus `maximumCacheSize(100_000)` so hammering the session endpoint cannot grow
-memory without bound.
+Nonces live in one `Cache<String, Unit>` inside `HmacHoneypot`: `expireAfterWrite(1.hours)`,
+plus `maximumCacheSize(100_000)` so hammering the session endpoint cannot grow memory
+without bound. This is a real ceiling on token lifetime, not just a memory bound — cache4k
+expires entries on its own wall-clock `TimeSource`, disconnected from the injected `now`, so
+a token older than one hour has its nonce evicted and is rejected regardless of what a
+larger `config.maxAge` would otherwise allow. `issue()` therefore requires
+`config.maxAge <= 1.hours`, so a config that would silently be capped at this ceiling fails
+loudly at session issuance instead.
 
 `cache4k` offers no atomic remove-and-return, so two concurrent submissions carrying the
 same nonce could both pass step 6. The `get` + `invalidate` pair is therefore guarded by a

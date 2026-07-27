@@ -41,8 +41,16 @@ class HmacHoneypot(
         const val FIELD_NAME_LENGTH = 8
         const val FIELD_NAME_FIRST_CHARS = "abcdefghijklmnopqrstuvwxyz"
         const val FIELD_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
+        const val MAX_FIELD_COUNT = 32
 
-        /** Memory ceiling only — real expiry is enforced per-config from the token's `iat`. */
+        /**
+         * Real ceiling on token lifetime, not just a memory bound: cache4k expires nonce
+         * entries on its own wall-clock `TimeSource`, disconnected from the injected [now].
+         * A token older than this has its nonce evicted from underneath it and is rejected
+         * as "already used or unknown" regardless of what `config.maxAge` allows. `issue()`
+         * enforces `config.maxAge <= NONCE_TTL_CEILING` so a config that would silently be
+         * capped at this ceiling fails loudly at session issuance instead.
+         */
         val NONCE_TTL_CEILING = 1.hours
         const val NONCE_CACHE_MAX = 100_000L
     }
@@ -58,7 +66,12 @@ class HmacHoneypot(
     private val nonceMutex = Mutex()
 
     override fun issue(configId: String, config: HoneypotConfig): HoneypotSession {
-        require(config.fieldCount > 0) { "honeypot fieldCount must be positive" }
+        require(config.fieldCount in 1..MAX_FIELD_COUNT) {
+            "honeypot fieldCount must be between 1 and $MAX_FIELD_COUNT"
+        }
+        require(config.maxAge <= NONCE_TTL_CEILING) {
+            "honeypot maxAge must not exceed the nonce cache ceiling of $NONCE_TTL_CEILING"
+        }
 
         val issuedAt = now()
         val nonce = encoder.encodeToString(randomBytes(NONCE_BYTES))
@@ -119,10 +132,12 @@ class HmacHoneypot(
         if (!consumed) return HoneypotResult.InvalidToken("honeypot token already used or unknown")
 
         // 7 — no human fills a form this fast
-        if (age < config.minDwell) return HoneypotResult.Trapped
+        if (age < config.minDwell) return HoneypotResult.Trapped("dwell: submission arrived before minDwell elapsed")
 
         // 8 — every declared trap field must have come back present and blank
-        if (payload.f.any { field -> submitted[field]?.isBlank() != true }) return HoneypotResult.Trapped
+        if (payload.f.any { field -> submitted[field]?.isBlank() != true }) {
+            return HoneypotResult.Trapped("field: a trap field was filled in or missing")
+        }
 
         return HoneypotResult.Pass
     }

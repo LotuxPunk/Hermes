@@ -217,10 +217,9 @@ class HmacHoneypotValidateTest {
         val session = honeypot.issue("abc-123", config)
         clock.millis = issuedAt + 500
 
-        assertEquals(
-            HoneypotResult.Trapped,
-            honeypot.validate(config, "abc-123", session.token, blankFor(session.fields))
-        )
+        val result = honeypot.validate(config, "abc-123", session.token, blankFor(session.fields))
+
+        assertEquals("dwell: submission arrived before minDwell elapsed", assertIs<HoneypotResult.Trapped>(result).reason)
     }
 
     @Test
@@ -228,7 +227,31 @@ class HmacHoneypotValidateTest {
         val (honeypot, _, session) = issueAndSettle()
         val filled = blankFor(session.fields) + (session.fields.first() to "http://spam.example")
 
-        assertEquals(HoneypotResult.Trapped, honeypot.validate(config, "abc-123", session.token, filled))
+        val result = honeypot.validate(config, "abc-123", session.token, filled)
+
+        assertEquals("field: a trap field was filled in or missing", assertIs<HoneypotResult.Trapped>(result).reason)
+    }
+
+    /** The log needs to be able to tell a dwell trap from a field trap apart. */
+    @Test
+    fun `dwell trap and field trap report different reasons`() = runBlocking {
+        val dwellClock = MovableClock(issuedAt)
+        val dwellHoneypot = honeypotAt(dwellClock)
+        val dwellSession = dwellHoneypot.issue("abc-123", config)
+        dwellClock.millis = issuedAt + 500
+        val dwellResult = assertIs<HoneypotResult.Trapped>(
+            dwellHoneypot.validate(config, "abc-123", dwellSession.token, blankFor(dwellSession.fields))
+        )
+
+        val (fieldHoneypot, _, fieldSession) = issueAndSettle()
+        val filled = blankFor(fieldSession.fields) + (fieldSession.fields.first() to "http://spam.example")
+        val fieldResult = assertIs<HoneypotResult.Trapped>(
+            fieldHoneypot.validate(config, "abc-123", fieldSession.token, filled)
+        )
+
+        assertTrue(dwellResult.reason != fieldResult.reason, "reasons must differ: ${dwellResult.reason}")
+        assertTrue(dwellResult.reason.startsWith("dwell"))
+        assertTrue(fieldResult.reason.startsWith("field"))
     }
 
     /** Blank means `isBlank()`, so whitespace is blank and must pass — not trap. */
@@ -241,11 +264,11 @@ class HmacHoneypotValidateTest {
     }
 
     @Test
-    fun `traps a missing trap field`() = runBlocking {
+    fun `traps a missing trap field`(): Unit = runBlocking {
         val (honeypot, _, session) = issueAndSettle()
         val incomplete = blankFor(session.fields) - session.fields.first()
 
-        assertEquals(HoneypotResult.Trapped, honeypot.validate(config, "abc-123", session.token, incomplete))
+        assertIs<HoneypotResult.Trapped>(honeypot.validate(config, "abc-123", session.token, incomplete))
     }
 
     @Test
@@ -261,7 +284,7 @@ class HmacHoneypotValidateTest {
         val (honeypot, _, session) = issueAndSettle()
         val filled = blankFor(session.fields) + (session.fields.first() to "spam")
 
-        assertEquals(HoneypotResult.Trapped, honeypot.validate(config, "abc-123", session.token, filled))
+        assertIs<HoneypotResult.Trapped>(honeypot.validate(config, "abc-123", session.token, filled))
         // Second attempt with correct blanks must fail: the nonce is already gone.
         assertIs<HoneypotResult.InvalidToken>(
             honeypot.validate(config, "abc-123", session.token, blankFor(session.fields))

@@ -7,6 +7,7 @@ import com.vandeas.dto.MailInput
 import com.vandeas.entities.Attachment
 import com.vandeas.entities.MailSendStatus
 import com.vandeas.exception.DailyLimitExceededException
+import com.vandeas.exception.HoneypotMisconfiguredException
 import com.vandeas.exception.HoneypotRejectedException
 import com.vandeas.exception.RecaptchaFailedException
 import com.vandeas.logic.HoneypotLogic
@@ -50,6 +51,10 @@ fun Application.configureRouting() {
                     } catch (e: Exception) {
                         when (e) {
                             is NoSuchElementException -> call.respond(HttpStatusCode.NotFound, e.message ?: "")
+                            is HoneypotMisconfiguredException -> {
+                                application.log.error("Honeypot misconfigured for form-session request: ${e.message}")
+                                call.respond(HttpStatusCode.InternalServerError)
+                            }
                             is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, e.message ?: "")
                             else -> {
                                 application.log.error("Failed to issue honeypot session: ${e.message}")
