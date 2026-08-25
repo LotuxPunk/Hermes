@@ -43,10 +43,14 @@ class SMTPMailer(
 			},
 		)
 
-	override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>): SendOperationResult {
+	override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?): SendOperationResult {
+		// Resolved outside the apply block: MimeMessage has its own `replyTo` member, which
+		// would shadow this parameter inside the block.
+		val replyToAddress = replyTo?.let { InternetAddress(it) }
 		val message = MimeMessage(session).apply {
 			setFrom(InternetAddress(from))
 			addRecipient(Message.RecipientType.TO, InternetAddress(to))
+			replyToAddress?.let { setReplyTo(arrayOf(it)) }
 			this.subject = subject
 			if (attachments.isEmpty()) {
 				setText(content, "utf-8", "html")
@@ -87,7 +91,7 @@ class SMTPMailer(
 	}
 
 	override suspend fun sendEmails(mails: List<Mail>) = mails.map {
-		sendEmail(it.to, it.from, it.subject, it.content, it.attachments)
+		sendEmail(it.to, it.from, it.subject, it.content, it.attachments, it.replyTo)
 	}.let { responses ->
         SendOperationResult(
             sent = responses.flatMap { it.sent },

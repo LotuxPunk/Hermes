@@ -144,6 +144,7 @@ fun Application.configureRouting() {
                             val parts = call.receiveMultipart()
                             val recipients = mutableListOf<String>()
                             var attributesPart: String? = null
+                            var replyToPart: String? = null
                             val fileAttachments = mutableListOf<Attachment>()
 
                             parts.forEachPart { part ->
@@ -152,6 +153,7 @@ fun Application.configureRouting() {
                                         when (part.name) {
                                             "to" -> recipients.add(part.value)
                                             "attributes" -> attributesPart = part.value
+                                            "replyTo" -> replyToPart = part.value
                                         }
                                     }
                                     is PartData.FileItem -> {
@@ -176,6 +178,7 @@ fun Application.configureRouting() {
 
                             broadcastRequest = BroadcastMailRequest(
                                 to = recipients,
+                                replyTo = replyToPart,
                                 attributes = attributes
                             )
                             attachments = fileAttachments

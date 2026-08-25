@@ -309,7 +309,8 @@ class RateLimitedMailQueueTest {
                 from: String,
                 subject: String,
                 content: String,
-                attachments: List<Attachment>
+                attachments: List<Attachment>,
+                replyTo: String?
             ): SendOperationResult {
                 attemptTimes.add(System.currentTimeMillis())
                 return SendOperationResult(temporary = listOf(to))
@@ -418,7 +419,8 @@ class RateLimitedMailQueueTest {
                 from: String,
                 subject: String,
                 content: String,
-                attachments: List<Attachment>
+                attachments: List<Attachment>,
+                replyTo: String?
             ): SendOperationResult {
                 throw CancellationException("simulated cancellation")
             }
@@ -501,8 +503,8 @@ class RateLimitedMailQueueTest {
         var shouldTemporaryFailFor = setOf<String>()
         var onSend: ((Mail) -> Unit)? = null
 
-        override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>): SendOperationResult {
-            val mail = Mail(from, to, subject, content)
+        override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?): SendOperationResult {
+            val mail = Mail(from, to, subject, content, attachments, replyTo)
 
             onSend?.invoke(mail)
 

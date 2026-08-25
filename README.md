@@ -178,11 +178,16 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 
 ##### Body
 
-| Attribute    | Type                                | Description                                          |
-|:-------------|:------------------------------------|:-----------------------------------------------------|
-| `id`         | `string`                            | **Required**. Your mail config id                    |
-| `email`      | `string`                            | **Required** Email of the person to sent the mail to |
-| `attributes` | `Map<string, string> / JSON Object` | **Required** Attributes to hydrate the mail template |
+| Attribute    | Type                                | Description                                                      |
+|:-------------|:------------------------------------|:-----------------------------------------------------------------|
+| `id`         | `string`                            | **Required**. Your mail config id                                |
+| `email`      | `string`                            | **Required** Email of the person to sent the mail to             |
+| `replyTo`    | `string`                            | **Optional** Address that receives replies instead of the sender |
+| `attributes` | `Map<string, string> / JSON Object` | **Required** Attributes to hydrate the mail template             |
+
+Set `replyTo` when recipients should reply to a monitored address rather than the
+no-reply sender configured in the mail config. Omit it and no `Reply-To` header is set.
+A malformed address is rejected with `400 Bad Request` and the mail is not sent.
 
 #### Send batch of mails using mail configurations
 
@@ -194,11 +199,16 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 |:----------|:--------------|:-------------------------------------|
 | `mails`   | `Array<Mail>` | **Required**. Array of mails to send |
 
+Each entry accepts the same fields as `POST /v1/mail`, including the optional
+`replyTo`. If any entry carries a malformed `replyTo`, the whole batch is rejected with
+`400 Bad Request` and no mail is sent.
+
 ```json
 [
     {
         "id": "UUID", // Mail config id
         "email": "johndoe@example.com",
+        "replyTo": "support@example.com", // Optional
         "attributes": {
             "firstName": "John",
             "lastName": "Doe"
@@ -221,14 +231,16 @@ Send the same email to multiple recipients using a single mail configuration. Th
 
 ##### Body (JSON)
 
-| Attribute    | Type                                | Description                                          |
-|:-------------|:------------------------------------|:-----------------------------------------------------|
-| `to`         | `Array<string>`                     | **Required** List of recipient email addresses       |
-| `attributes` | `Map<string, string> / JSON Object` | **Required** Attributes to hydrate the mail template |
+| Attribute    | Type                                | Description                                                      |
+|:-------------|:------------------------------------|:-----------------------------------------------------------------|
+| `to`         | `Array<string>`                     | **Required** List of recipient email addresses                   |
+| `replyTo`    | `string`                            | **Optional** Address that receives replies, for every recipient  |
+| `attributes` | `Map<string, string> / JSON Object` | **Required** Attributes to hydrate the mail template             |
 
 ```json
 {
     "to": ["alice@example.com", "bob@example.com"],
+    "replyTo": "support@example.com",
     "attributes": {
         "firstName": "Team",
         "eventName": "Launch Day"
@@ -241,6 +253,7 @@ Send the same email to multiple recipients using a single mail configuration. Th
 | Field        | Type     | Description                                                  |
 |:-------------|:---------|:-------------------------------------------------------------|
 | `to`         | `string` | **Required** Recipient email (repeat the field for multiple) |
+| `replyTo`    | `string` | **Optional** Address that receives replies                   |
 | `attributes` | `string` | **Optional** JSON object of template attributes              |
 | `attachment` | `file`   | **Optional** File attachment (repeat for multiple)           |
 

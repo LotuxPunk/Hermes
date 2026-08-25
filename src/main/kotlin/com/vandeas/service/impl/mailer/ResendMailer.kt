@@ -18,12 +18,16 @@ class ResendMailer(
 
     private val logger = KtorSimpleLogger("com.vandeas.service.impl.mailer.ResendMailer")
 
-    override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>): SendOperationResult {
+    override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?): SendOperationResult {
         val builder = CreateEmailOptions.builder()
             .from(from)
             .to(to)
             .subject(subject)
             .html(content)
+
+        if (replyTo != null) {
+            builder.replyTo(replyTo)
+        }
 
         if (attachments.isNotEmpty()) {
             builder.attachments(attachments.map { attachment ->
@@ -65,6 +69,10 @@ class ResendMailer(
                 .subject(it.subject)
                 .html(it.content)
 
+            it.replyTo?.let { replyTo ->
+                builder.replyTo(replyTo)
+            }
+
             if (it.attachments.isNotEmpty()) {
                 builder.attachments(it.attachments.map { attachment ->
                     ResendAttachment.builder()
@@ -94,7 +102,7 @@ class ResendMailer(
             // When batch fails, we need to send individually to categorize failures
             logger.info("Falling back to individual sends to categorize failures")
             val results = mails.map { mail ->
-                sendEmail(mail.to, mail.from, mail.subject, mail.content, mail.attachments)
+                sendEmail(mail.to, mail.from, mail.subject, mail.content, mail.attachments, mail.replyTo)
             }
 
             // Aggregate all results

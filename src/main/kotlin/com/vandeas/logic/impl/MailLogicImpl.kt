@@ -18,6 +18,8 @@ import com.vandeas.logic.MailLogic
 import com.vandeas.service.*
 import com.vandeas.service.impl.captcha.GoogleReCaptcha
 import com.vandeas.service.impl.captcha.KerberusCaptcha
+import com.vandeas.utils.isValidEmailAddress
+import io.ktor.util.logging.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -35,12 +37,38 @@ class MailLogicImpl(
         private const val BROADCAST_RECIPIENT_LIMIT = 50
     }
 
+    private val logger = KtorSimpleLogger("com.vandeas.logic.impl.MailLogicImpl")
+
     private val mailers: MutableMap<String, Mailer> = mutableMapOf() //TODO: Update mailers on config change/deletion
 
     private fun MailConfig.getMailerOrCreate(): Mailer = mailers[id] ?: this.toMailer().also { mailers[id] = it }
 
+    /**
+     * Rejects a malformed address before anything is sent.
+     *
+     * The queue acknowledges an enqueued mail immediately, so an address that only fails
+     * inside a worker never reaches the caller. Validating here turns that silent loss
+     * into a bad request.
+     *
+     * @param field name of the request field being checked, used in the log line and the
+     * error returned to the caller.
+     * @throws IllegalArgumentException when [address] is present and unparseable.
+     */
+    private fun validateAddress(configId: String, field: String, address: String?) {
+        if (address == null || address.isValidEmailAddress()) {
+            return
+        }
+
+        logger.warn("Rejected mail for config $configId: invalid $field '$address'")
+        throw IllegalArgumentException("Invalid $field address: $address")
+    }
+
     override suspend fun sendContactForm(form: ContactForm): SendOperationResult {
         val config = contactFormConfigHandler.get(form.id)
+
+        // Checked before the rate limiter and the captcha: a malformed address is a bad
+        // request either way, and rejecting it here avoids a captcha round trip.
+        validateAddress(form.id, "email", form.email)
 
         if (!limiter.canSendMail(config)) {
             throw DailyLimitExceededException(config.dailyLimit)
@@ -86,6 +114,8 @@ class MailLogicImpl(
     }
 
     override suspend fun sendMail(mailInput: MailInput, attachments: List<Attachment>): SendOperationResult {
+        validateAddress(mailInput.id, "replyTo", mailInput.replyTo)
+
         val config = mailConfigHandler.get(mailInput.id)
 
         val mailer = mailers[config.identifierFromCredentials()] ?: config.toMailer().also { mailers[config.identifierFromCredentials()] = it }
@@ -95,11 +125,27 @@ class MailLogicImpl(
             to = mailInput.email,
             subject = TemplateRenderer.renderPlainText(config.subjectTemplate, mailInput.attributes),
             content = TemplateRenderer.renderHtml(mailConfigHandler.getTemplate(config.id), mailInput.attributes),
-            attachments = attachments
+            attachments = attachments,
+            replyTo = mailInput.replyTo
         )
     }
 
     override suspend fun sendMails(batch: List<MailInput>): SendOperationResult = withContext(Dispatchers.Default) {
+        // Validated up front so a single malformed address cannot produce a partial send.
+        val invalidReplyTos = batch.mapNotNull { mailInput ->
+            mailInput.replyTo
+                ?.takeUnless { it.isValidEmailAddress() }
+                ?.let { "${mailInput.email} -> $it" }
+        }
+
+        if (invalidReplyTos.isNotEmpty()) {
+            logger.warn("Rejected batch of ${batch.size} mails, invalid replyTo addresses: ${invalidReplyTos.joinToString()}")
+        }
+
+        require(invalidReplyTos.isEmpty()) {
+            "Invalid replyTo addresses: ${invalidReplyTos.joinToString()}"
+        }
+
         val mailInputsByConfig = batch.groupBy { mailInput ->
             mailConfigHandler.get(mailInput.id)
         }
@@ -130,7 +176,8 @@ class MailLogicImpl(
                             from = mailConfig.sender,
                             to = mailInput.email,
                             subject = TemplateRenderer.renderPlainText(mailConfig.subjectTemplate, mailInput.attributes),
-                            content = TemplateRenderer.renderHtml(mailConfigHandler.getTemplate(mailInput.id), mailInput.attributes)
+                            content = TemplateRenderer.renderHtml(mailConfigHandler.getTemplate(mailInput.id), mailInput.attributes),
+                            replyTo = mailInput.replyTo
                         )
                     },
                     maxRetries = 3,
@@ -156,6 +203,7 @@ class MailLogicImpl(
         require(request.to.size <= BROADCAST_RECIPIENT_LIMIT) {
             "Recipient list exceeds the maximum of $BROADCAST_RECIPIENT_LIMIT"
         }
+        validateAddress(configId, "replyTo", request.replyTo)
 
         val config = mailConfigHandler.get(configId)
         val mailer = config.getMailerOrCreate()
@@ -170,7 +218,8 @@ class MailLogicImpl(
                     to = recipient,
                     subject = subject,
                     content = content,
-                    attachments = attachments
+                    attachments = attachments,
+                    replyTo = request.replyTo
                 )
             },
             maxRetries = 3,

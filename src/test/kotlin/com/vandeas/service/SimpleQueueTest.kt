@@ -45,7 +45,7 @@ class SimpleQueueTest {
     private class SimpleMailer : Mailer {
         var sentCount = 0
 
-        override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>): com.vandeas.entities.SendOperationResult {
+        override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?): com.vandeas.entities.SendOperationResult {
             delay(10)
             sentCount++
             return com.vandeas.entities.SendOperationResult(sent = listOf(to))

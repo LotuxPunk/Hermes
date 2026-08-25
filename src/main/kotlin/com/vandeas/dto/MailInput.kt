@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class MailInput(
     val id: String,
     val email: String,
+    val replyTo: String? = null,
     @Serializable(AnyMapSerializer::class)
     val attributes: Map<String, Any?>
 )
