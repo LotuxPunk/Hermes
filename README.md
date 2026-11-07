@@ -22,6 +22,7 @@ Mailer micro-service for vandeas
   - [Send Mail Using Mail Configuration](#send-mail-using-mail-configuration)
     - [POST `/v1/mail`](#post-v1mail)
     - [Body Parameters](#body-parameters-1)
+    - [Sender Name](#sender-name)
   - [Send Batch of Mails Using Mail Configurations](#send-batch-of-mails-using-mail-configurations)
     - [POST `/v1/mail/batch`](#post-v1mailbatch)
     - [Body Parameters](#body-parameters-2)
@@ -283,11 +284,28 @@ logs. Show "a copy has been sent to you" only on `SENT`.
 | `id`         | `string`                            | **Required**. Your mail config id                                |
 | `email`      | `string`                            | **Required** Email of the person to sent the mail to             |
 | `replyTo`    | `string`                            | **Optional** Address that receives replies instead of the sender |
+| `senderName` | `string`                            | **Optional** Display name of the sender, for this mail only      |
 | `attributes` | `Map<string, string> / JSON Object` | **Required** Attributes to hydrate the mail template             |
 
 Set `replyTo` when recipients should reply to a monitored address rather than the
 no-reply sender configured in the mail config. Omit it and no `Reply-To` header is set.
 A malformed address is rejected with `400 Bad Request` and the mail is not sent.
+
+##### Sender name
+
+Set `senderName` when one mail config sends on behalf of several parties, for example
+`"Spy Club via Courtly"`. It replaces only the display name of the config's `sender`:
+
+- The address always stays the one in the config's `sender`, so a request cannot send
+  from another address. A config whose `sender` is a bare address takes `senderName` as
+  its name.
+- Omit it, or send `null`, and the `From` header is the config's `sender`, unchanged.
+- Accents, apostrophes such as `’`, commas and double quotes are encoded for you and reach
+  the recipient as sent.
+- The name is trimmed, then refused with `400 Bad Request` and the body `Invalid senderName`
+  when it is empty, longer than 100 characters (Unicode code points), or contains a control
+  character (CR and LF included) or a bidi control (U+202A–U+202E, U+2066–U+2069). Nothing
+  is sent.
 
 #### Send batch of mails using mail configurations
 
@@ -300,8 +318,10 @@ A malformed address is rejected with `400 Bad Request` and the mail is not sent.
 | `mails`   | `Array<Mail>` | **Required**. Array of mails to send |
 
 Each entry accepts the same fields as `POST /v1/mail`, including the optional
-`replyTo`. If any entry carries a malformed `replyTo`, the whole batch is rejected with
-`400 Bad Request` and no mail is sent.
+`replyTo` and [`senderName`](#sender-name). Each entry gets its own `senderName`; an entry
+without one keeps the config's sender. If any entry carries a malformed `replyTo` or a
+refused `senderName`, the whole batch is rejected with `400 Bad Request` and no mail is
+sent.
 
 ```json
 [
@@ -309,6 +329,7 @@ Each entry accepts the same fields as `POST /v1/mail`, including the optional
         "id": "UUID", // Mail config id
         "email": "johndoe@example.com",
         "replyTo": "support@example.com", // Optional
+        "senderName": "Spy Club via Courtly", // Optional
         "attributes": {
             "firstName": "John",
             "lastName": "Doe"
@@ -335,12 +356,17 @@ Send the same email to multiple recipients using a single mail configuration. Th
 |:-------------|:------------------------------------|:-----------------------------------------------------------------|
 | `to`         | `Array<string>`                     | **Required** List of recipient email addresses                   |
 | `replyTo`    | `string`                            | **Optional** Address that receives replies, for every recipient  |
+| `senderName` | `string`                            | **Optional** Display name of the sender, for every recipient     |
 | `attributes` | `Map<string, string> / JSON Object` | **Required** Attributes to hydrate the mail template             |
+
+`senderName` follows the [same rules](#sender-name) as on `POST /v1/mail`: only the display
+name changes, the address stays the config's.
 
 ```json
 {
     "to": ["alice@example.com", "bob@example.com"],
     "replyTo": "support@example.com",
+    "senderName": "Spy Club via Courtly",
     "attributes": {
         "firstName": "Team",
         "eventName": "Launch Day"
@@ -354,6 +380,7 @@ Send the same email to multiple recipients using a single mail configuration. Th
 |:-------------|:---------|:-------------------------------------------------------------|
 | `to`         | `string` | **Required** Recipient email (repeat the field for multiple) |
 | `replyTo`    | `string` | **Optional** Address that receives replies                   |
+| `senderName` | `string` | **Optional** Display name of the sender, for every recipient |
 | `attributes` | `string` | **Optional** JSON object of template attributes              |
 | `attachment` | `file`   | **Optional** File attachment (repeat for multiple)           |
 

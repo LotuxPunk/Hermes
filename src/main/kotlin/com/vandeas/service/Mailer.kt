@@ -12,6 +12,7 @@ interface Mailer {
         content: String,
         attachments: List<Attachment> = emptyList(),
         replyTo: String? = null,
+        senderName: String? = null,
     ) : SendOperationResult
 
     suspend fun sendEmails(

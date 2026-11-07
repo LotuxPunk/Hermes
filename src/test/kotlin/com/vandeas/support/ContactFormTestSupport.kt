@@ -35,7 +35,8 @@ class RecordingMailer(
         content: String,
         attachments: List<Attachment>,
         replyTo: String?,
-    ): SendOperationResult = sendEmails(listOf(Mail(from, to, subject, content, attachments, replyTo)))
+        senderName: String?,
+    ): SendOperationResult = sendEmails(listOf(Mail(from, to, subject, content, attachments, replyTo, senderName)))
 
     override suspend fun sendEmails(mails: List<Mail>): SendOperationResult =
         mails.map { mail ->
