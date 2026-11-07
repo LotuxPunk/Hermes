@@ -4,6 +4,7 @@ import com.vandeas.config.AnyMapSerializer
 import com.vandeas.dto.BroadcastMailRequest
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.MailInput
+import com.vandeas.dto.toResponse
 import com.vandeas.entities.Attachment
 import com.vandeas.entities.MailSendStatus
 import com.vandeas.exception.DailyLimitExceededException
@@ -42,10 +43,10 @@ fun Application.configureRouting() {
                     val contactForm = call.receive<ContactForm>()
 
                     try {
-                        val response = mailLogic.sendContactForm(contactForm)
+                        val result = mailLogic.sendContactForm(contactForm)
                         call.respond(
-                            response.status.toHttpStatusCode(),
-                            response
+                            result.orgNotification.status.toHttpStatusCode(),
+                            result.toResponse()
                         )
                     } catch (e: Exception) {
                         application.log.error("Failed to send contact form: ${e.message}")
