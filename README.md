@@ -11,6 +11,7 @@ Mailer micro-service for vandeas
   - [Supported Mail Providers](#supported-mail-providers)
   - [Contact Form](#contact-form)
     - [Example of `CONTACT_FORM_CONFIGS_FOLDER` Configuration Files](#example-of-contact_form_configs_folder-configuration-files)
+    - [Visitor Confirmation](#visitor-confirmation)
   - [Mail Config](#mail-config)
     - [Example of `MAIL_CONFIGS_FOLDER` Configuration Files](#example-of-mail_configs_folder-configuration-files)
   - [Mail Template](#mail-template)
@@ -41,6 +42,7 @@ To run this project, you will need to add the following environment variables
 - `GOOGLE_RECAPTCHA_SECRET`: A Google ReCaptcha secret (required only when using Google ReCaptcha in contact forms).
 - `USE_MAIL_QUEUE`: (Optional, default: `true`) Enable queue-based email sending with rate limiting.
 - `MAIL_RATE_LIMIT`: (Optional, default: `10`) Maximum number of emails to send per second.
+- `CONFIRMATION_RECIPIENT_DAILY_LIMIT`: (Optional, default: `3`) Maximum number of [Visitor confirmations](#visitor-confirmation) one address receives per day, across every contact form config of the instance. A value that is not a positive integer falls back to `3` with a warning: the limit cannot be disabled.
 
 See [.env.example](.env.example) for a complete configuration template.
 
@@ -95,11 +97,15 @@ Contact forms support captcha validation with the following providers:
     "dailyLimit": 10,
     "destination": "john@example.com",
     "sender": "doe@example.com",
-    "threshold": 0.5, // ReCaptcha score threshold
     "lang": "fr", // ISO 639-1
-    "subjectTemplate": "New mail from {{form.firstName}}",
+    "subjectTemplate": "New mail from {{form.fullName}}",
     "provider": "RESEND",
-    "apiKey": "<YOUR_RESEND_API_KEY>"
+    "apiKey": "<YOUR_RESEND_API_KEY>",
+    "captcha": {
+        "provider": "GOOGLE_RECAPTCHA",
+        "secretKey": "<YOUR_RECAPTCHA_SECRET>",
+        "threshold": 0.5 // ReCaptcha score threshold
+    }
 }
 ```
 
@@ -110,18 +116,90 @@ Contact forms support captcha validation with the following providers:
     "dailyLimit": 10,
     "destination": "john@example.com",
     "sender": "doe@example.com",
-    "threshold": 0.5, // ReCaptcha score threshold
     "lang": "fr", // ISO 639-1
-    "subjectTemplate": "New mail from {{form.firstName}}",
+    "subjectTemplate": "New mail from {{form.fullName}}",
     "provider": "SMTP",
     "username": "<SMTP_USERNAME>",
     "password": "<SMTP_PASSWORD>",
     "smtpHost": "<SMTP_SERVER_IP>",
-    "smtpPort": "<SMTP_SERVER_PORT>"
+    "smtpPort": "<SMTP_SERVER_PORT>",
+    "captcha": {
+        "provider": "KERBERUS",
+        "secretKey": "<YOUR_KERBERUS_SECRET>"
+    }
 }
 ```
 
 Filename does not have to respect any convention.
+
+A config that fails to parse or validate is rejected: Hermes logs an error naming the file
+and does not load it, and every other config keeps working. If the file was already loaded,
+the previous version stays in place until the file is fixed.
+
+#### Visitor confirmation
+
+A contact form config can send a **Visitor confirmation**: on every Submission, after the
+mail to your inbox (the Org notification), Hermes sends one mail to the address the visitor
+typed. It acknowledges receipt and can include a copy of what they wrote.
+
+To enable it:
+
+1. Add a `confirmation` block to the contact form config, with the subject template of the
+   confirmation:
+
+   ```json
+   {
+       "id": "UUID",
+       "dailyLimit": 10,
+       "destination": "john@example.com",
+       "sender": "doe@example.com",
+       "lang": "en",
+       "subjectTemplate": "New mail from {{form.fullName}}",
+       "confirmation": {
+           "subjectTemplate": "We received your message, {{form.fullName}}"
+       },
+       "provider": "RESEND",
+       "apiKey": "<YOUR_RESEND_API_KEY>",
+       "captcha": { "provider": "KERBERUS", "secretKey": "<YOUR_KERBERUS_SECRET>" }
+   }
+   ```
+
+2. Add the body template to the templates folder as `{{UUID}}.confirmation.hbs`, next to
+   `{{UUID}}.hbs`. It sees the same fields as the Org notification template (`form.fullName`,
+   `form.email`, `form.phone`, `form.topic`, `form.content`).
+
+How it behaves:
+
+- It is sent through the same provider and from the same `sender` as the Org notification,
+  with `Reply-To` set to your inbox (`destination`), so a visitor who replies reaches you.
+- It is sent only when the Org notification was sent, or queued for sending, to at least
+  one recipient. With the mail queue on (the default), a queued Org notification counts even
+  if its delivery fails later.
+- It is best-effort. If the template is missing, rendering or sending fails, or the address
+  has reached its daily limit, only the confirmation is skipped: the Submission still
+  succeeds with the same HTTP status, the response says `"confirmation": "NOT_SENT"`, and the
+  reason is logged with a masked address (`j***@example.com`).
+- It does not use up the `dailyLimit`, which keeps counting Submissions.
+- Configs without a `confirmation` block behave exactly as before.
+
+Safeguards:
+
+- **A finite `dailyLimit` is required.** A config with a `confirmation` block and a
+  `dailyLimit` of `0` or less is rejected at load time.
+- **One address receives at most `CONFIRMATION_RECIPIENT_DAILY_LIMIT` confirmations per day**
+  (default `3`), across every contact form config of the instance. Addresses that differ only
+  by case or by a `+tag` count as one. Hermes keeps only a SHA-256 hash of each address, in
+  memory, and resets the counters daily and on restart.
+- **Links are shown defanged.** Every field the visitor typed is defanged before it reaches
+  the confirmation templates (subject and body), so mail clients cannot turn it into a link:
+  `https://example.com/page.html` becomes `hxxps://example[.]com/page[.]html`, `www.example.com` becomes
+  `www[.]example[.]com`, `192.168.0.1` becomes `192[.]168[.]0[.]1` and `jane@example.com`
+  becomes `jane[at]example[.]com`. The Org notification shows the original text.
+
+> **Warning:** Hermes cannot verify that the address typed in the form belongs to the
+> visitor. A mistyped or malicious address sends the confirmation, and anything your
+> template copies into it, to a stranger. On sensitive sites, leave sensitive fields (such
+> as `form.phone` or `form.content`) out of the confirmation template.
 
 ### Mail config
 
@@ -156,6 +234,8 @@ Filename does not have to respect any convention.
 
 Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Form or Mail config) 
 
+The body of a contact form's [Visitor confirmation](#visitor-confirmation) goes in `{{UUID}}.confirmation.hbs`.
+
 ### API Reference
 
 #### Send contact form using contact form configuration
@@ -171,6 +251,26 @@ Filename should be `{{UUID}}.hbs` (same UUID as the `id` field in the Contact Fo
 | `email`          | `string` | **Required** Email of the person that sent the form     |
 | `content`        | `string` | **Required** Content of the message                     |
 | `recaptchaToken` | `string` | **Required** Result token/secret of recaptcha           |
+
+##### Response
+
+The response lists the Org notification recipients by outcome, and its HTTP status depends on
+the Org notification only.
+
+```json
+{
+    "sent": ["john@example.com"],
+    "failed": [],
+    "bounced": [],
+    "temporary": [],
+    "confirmation": "SENT"
+}
+```
+
+`confirmation` is present only when the contact form config has a
+[Visitor confirmation](#visitor-confirmation). `SENT` means the confirmation was sent or
+queued for sending. `NOT_SENT` means it was not, without saying why: the reason is in the
+logs. Show "a copy has been sent to you" only on `SENT`.
 
 #### Send mail using mail configuration
 

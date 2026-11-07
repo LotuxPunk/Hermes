@@ -66,6 +66,12 @@ class EmailValidationTest {
     }
 
     @Test
+    fun `rejects an RFC 822 group so one field cannot carry several recipients`() {
+        assertFalse("x:victim1@a.com,victim2@b.com;".isValidEmailAddress())
+        assertFalse("undisclosed:victim@a.com;".isValidEmailAddress())
+    }
+
+    @Test
     fun `accepts a bare hostname, per RFC 822`() {
         // Documented, not desired: javax.mail does not require a dotted domain.
         assertTrue("support@localhost".isValidEmailAddress())

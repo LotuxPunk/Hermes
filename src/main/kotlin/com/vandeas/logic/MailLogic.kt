@@ -4,15 +4,17 @@ import com.vandeas.dto.BroadcastMailRequest
 import com.vandeas.dto.ContactForm
 import com.vandeas.dto.MailInput
 import com.vandeas.entities.Attachment
+import com.vandeas.entities.ContactFormResult
 import com.vandeas.entities.SendOperationResult
 
 interface MailLogic {
     /**
-     * Sends a contact form
+     * Sends a contact form: the Org notification, then the Visitor confirmation when the
+     * contact form config has one.
      * @param form The contact form to send
-     * @return The result of the send operation
+     * @return The result of the Org notification and the outcome of the Visitor confirmation
      */
-    suspend fun sendContactForm(form: ContactForm): SendOperationResult
+    suspend fun sendContactForm(form: ContactForm): ContactFormResult
 
     /**
      * Sends a mail
