@@ -8,6 +8,7 @@ data class MailInput(
     val id: String,
     val email: String,
     val replyTo: String? = null,
+    val senderName: String? = null,
     @Serializable(AnyMapSerializer::class)
     val attributes: Map<String, Any?>
 )

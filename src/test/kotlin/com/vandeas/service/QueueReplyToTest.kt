@@ -93,7 +93,8 @@ class QueueReplyToTest {
             subject: String,
             content: String,
             attachments: List<Attachment>,
-            replyTo: String?
+            replyTo: String?,
+            senderName: String?
         ): SendOperationResult {
             replyTos.add(replyTo)
             return SendOperationResult(sent = listOf(to))

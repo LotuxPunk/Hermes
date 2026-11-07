@@ -32,8 +32,8 @@ abstract class AbstractQueuedMailer(
      *
      * @return SendOperationResult with reference for tracking
      */
-    override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?): SendOperationResult {
-        val mail = Mail(from, to, subject, content, attachments, replyTo)
+    override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?, senderName: String?): SendOperationResult {
+        val mail = Mail(from, to, subject, content, attachments, replyTo, senderName)
         val queueItem = MailQueueItem(mail = mail)
         val reference = queue.enqueue(queueItem)
 
