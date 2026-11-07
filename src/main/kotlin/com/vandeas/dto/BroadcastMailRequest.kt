@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class BroadcastMailRequest(
     val to: List<String>,
     val replyTo: String? = null,
+    val senderName: String? = null,
     @Serializable(AnyMapSerializer::class)
     val attributes: Map<String, Any?>
 )

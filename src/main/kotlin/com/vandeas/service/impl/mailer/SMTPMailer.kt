@@ -4,6 +4,7 @@ import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.service.Mailer
+import com.vandeas.utils.senderAddress
 import io.ktor.util.logging.*
 import java.util.*
 import javax.activation.DataHandler
@@ -43,23 +44,40 @@ class SMTPMailer(
 			},
 		)
 
-	override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?): SendOperationResult {
+	override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?, senderName: String?): SendOperationResult =
+		send(Mail(from = from, to = to, subject = subject, content = content, attachments = attachments, replyTo = replyTo, senderName = senderName))
+
+	override suspend fun sendEmails(mails: List<Mail>) = mails.map { send(it) }.let { responses ->
+        SendOperationResult(
+            sent = responses.flatMap { it.sent },
+            failed = responses.flatMap { it.failed },
+            bounced = responses.flatMap { it.bounced },
+            temporary = responses.flatMap { it.temporary }
+        )
+	}
+
+	/**
+	 * Builds the message of [mail] without sending it.
+	 *
+	 * `From` comes from [senderAddress], so a [Mail.senderName] only changes the display name.
+	 */
+	internal fun createMessage(mail: Mail): MimeMessage {
 		// Resolved outside the apply block: MimeMessage has its own `replyTo` member, which
-		// would shadow this parameter inside the block.
-		val replyToAddress = replyTo?.let { InternetAddress(it) }
-		val message = MimeMessage(session).apply {
-			setFrom(InternetAddress(from))
-			addRecipient(Message.RecipientType.TO, InternetAddress(to))
+		// would shadow the mail's inside the block.
+		val replyToAddress = mail.replyTo?.let { InternetAddress(it) }
+		return MimeMessage(session).apply {
+			setFrom(senderAddress(mail.from, mail.senderName))
+			addRecipient(Message.RecipientType.TO, InternetAddress(mail.to))
 			replyToAddress?.let { setReplyTo(arrayOf(it)) }
-			this.subject = subject
-			if (attachments.isEmpty()) {
-				setText(content, "utf-8", "html")
+			this.subject = mail.subject
+			if (mail.attachments.isEmpty()) {
+				setText(mail.content, "utf-8", "html")
 			} else {
 				val multipart = MimeMultipart().apply {
 					addBodyPart(MimeBodyPart().apply {
-						setText(content, "utf-8", "html")
+						setText(mail.content, "utf-8", "html")
 					})
-					attachments.forEach { attachment ->
+					mail.attachments.forEach { attachment ->
 						addBodyPart(MimeBodyPart().apply {
 							dataHandler = DataHandler(ByteArrayDataSource(attachment.content, attachment.contentType))
 							fileName = attachment.filename
@@ -69,6 +87,11 @@ class SMTPMailer(
 				setContent(multipart)
 			}
 		}
+	}
+
+	private fun send(mail: Mail): SendOperationResult {
+		val to = mail.to
+		val message = createMessage(mail)
 		return try {
 			Transport.send(message)
 
@@ -88,17 +111,6 @@ class SMTPMailer(
             LOGGER.error("Unexpected error while sending email to $to: ${e.message}")
             classifyUnexpectedException(to, e)
 		}
-	}
-
-	override suspend fun sendEmails(mails: List<Mail>) = mails.map {
-		sendEmail(it.to, it.from, it.subject, it.content, it.attachments, it.replyTo)
-	}.let { responses ->
-        SendOperationResult(
-            sent = responses.flatMap { it.sent },
-            failed = responses.flatMap { it.failed },
-            bounced = responses.flatMap { it.bounced },
-            temporary = responses.flatMap { it.temporary }
-        )
 	}
 
     companion object {

@@ -7,6 +7,7 @@ import com.vandeas.entities.Attachment
 import com.vandeas.entities.Mail
 import com.vandeas.entities.SendOperationResult
 import com.vandeas.service.Mailer
+import com.vandeas.utils.senderAddress
 import io.ktor.util.logging.*
 import java.util.Base64
 import com.resend.services.emails.model.Attachment as ResendAttachment
@@ -18,28 +19,10 @@ class ResendMailer(
 
     private val logger = KtorSimpleLogger("com.vandeas.service.impl.mailer.ResendMailer")
 
-    override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?): SendOperationResult {
-        val builder = CreateEmailOptions.builder()
-            .from(from)
-            .to(to)
-            .subject(subject)
-            .html(content)
-
-        if (replyTo != null) {
-            builder.replyTo(replyTo)
-        }
-
-        if (attachments.isNotEmpty()) {
-            builder.attachments(attachments.map { attachment ->
-                ResendAttachment.builder()
-                    .fileName(attachment.filename)
-                    .content(Base64.getEncoder().encodeToString(attachment.content))
-                    .contentType(attachment.contentType)
-                    .build()
-            })
-        }
-
-        val sendMailRequest = builder.build()
+    override suspend fun sendEmail(to: String, from: String, subject: String, content: String, attachments: List<Attachment>, replyTo: String?, senderName: String?): SendOperationResult {
+        val sendMailRequest = createEmailOptions(
+            Mail(from = from, to = to, subject = subject, content = content, attachments = attachments, replyTo = replyTo, senderName = senderName)
+        )
 
         return try {
             val response = resend.emails().send(sendMailRequest)
@@ -62,29 +45,7 @@ class ResendMailer(
     }
 
     override suspend fun sendEmails(mails: List<Mail>): SendOperationResult {
-        val requests = mails.map {
-            val builder = CreateEmailOptions.builder()
-                .from(it.from)
-                .to(it.to)
-                .subject(it.subject)
-                .html(it.content)
-
-            it.replyTo?.let { replyTo ->
-                builder.replyTo(replyTo)
-            }
-
-            if (it.attachments.isNotEmpty()) {
-                builder.attachments(it.attachments.map { attachment ->
-                    ResendAttachment.builder()
-                        .fileName(attachment.filename)
-                        .content(Base64.getEncoder().encodeToString(attachment.content))
-                        .contentType(attachment.contentType)
-                        .build()
-                })
-            }
-
-            builder.build()
-        }
+        val requests = mails.map(::createEmailOptions)
 
         return try {
             val response = resend.batch().send(requests)
@@ -102,7 +63,7 @@ class ResendMailer(
             // When batch fails, we need to send individually to categorize failures
             logger.info("Falling back to individual sends to categorize failures")
             val results = mails.map { mail ->
-                sendEmail(mail.to, mail.from, mail.subject, mail.content, mail.attachments, mail.replyTo)
+                sendEmail(mail.to, mail.from, mail.subject, mail.content, mail.attachments, mail.replyTo, mail.senderName)
             }
 
             // Aggregate all results
@@ -116,6 +77,42 @@ class ResendMailer(
     }
 
     companion object {
+        /** Builds the Resend request of [mail] without sending it. */
+        fun createEmailOptions(mail: Mail): CreateEmailOptions {
+            val builder = CreateEmailOptions.builder()
+                .from(fromField(mail.from, mail.senderName))
+                .to(mail.to)
+                .subject(mail.subject)
+                .html(mail.content)
+
+            mail.replyTo?.let { replyTo ->
+                builder.replyTo(replyTo)
+            }
+
+            if (mail.attachments.isNotEmpty()) {
+                builder.attachments(mail.attachments.map { attachment ->
+                    ResendAttachment.builder()
+                        .fileName(attachment.filename)
+                        .content(Base64.getEncoder().encodeToString(attachment.content))
+                        .contentType(attachment.contentType)
+                        .build()
+                })
+            }
+
+            return builder.build()
+        }
+
+        /**
+         * The `from` field Resend receives for config sender [from].
+         *
+         * Without a [senderName], it is [from] exactly as configured. With one, it is
+         * `Name <address>`, the name quoted and escaped when it holds specials. It is not an
+         * RFC 2047 encoded word: Resend takes the name as UTF-8 JSON and encodes the header
+         * itself.
+         */
+        fun fromField(from: String, senderName: String?): String =
+            if (senderName == null) from else senderAddress(from, senderName).toUnicodeString()
+
         /**
          * Classify a Resend HTTP status code into a result for [to].
          *

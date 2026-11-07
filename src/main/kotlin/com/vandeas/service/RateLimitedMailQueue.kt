@@ -216,7 +216,8 @@ class RateLimitedMailQueue(
                 subject = item.mail.subject,
                 content = item.mail.content,
                 attachments = item.mail.attachments,
-                replyTo = item.mail.replyTo
+                replyTo = item.mail.replyTo,
+                senderName = item.mail.senderName,
             )
 
             // Handle the result

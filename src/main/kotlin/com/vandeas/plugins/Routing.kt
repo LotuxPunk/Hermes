@@ -146,6 +146,7 @@ fun Application.configureRouting() {
                             val recipients = mutableListOf<String>()
                             var attributesPart: String? = null
                             var replyToPart: String? = null
+                            var senderNamePart: String? = null
                             val fileAttachments = mutableListOf<Attachment>()
 
                             parts.forEachPart { part ->
@@ -155,6 +156,7 @@ fun Application.configureRouting() {
                                             "to" -> recipients.add(part.value)
                                             "attributes" -> attributesPart = part.value
                                             "replyTo" -> replyToPart = part.value
+                                            "senderName" -> senderNamePart = part.value
                                         }
                                     }
                                     is PartData.FileItem -> {
@@ -180,6 +182,7 @@ fun Application.configureRouting() {
                             broadcastRequest = BroadcastMailRequest(
                                 to = recipients,
                                 replyTo = replyToPart,
+                                senderName = senderNamePart,
                                 attributes = attributes
                             )
                             attachments = fileAttachments

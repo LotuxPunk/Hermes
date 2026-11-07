@@ -25,6 +25,7 @@ import com.vandeas.service.impl.captcha.KerberusCaptcha
 import com.vandeas.utils.bareEmailAddress
 import com.vandeas.utils.isValidEmailAddress
 import com.vandeas.utils.maskEmailAddress
+import com.vandeas.utils.senderNameRefusal
 import io.ktor.util.logging.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +49,7 @@ class MailLogicImpl(
     companion object {
         private const val RESEND_BATCH_LIMIT = 100
         private const val BROADCAST_RECIPIENT_LIMIT = 50
+        private const val INVALID_SENDER_NAME = "Invalid senderName"
     }
 
     private val logger = KtorSimpleLogger("com.vandeas.logic.impl.MailLogicImpl")
@@ -74,6 +76,23 @@ class MailLogicImpl(
 
         logger.warn("Rejected mail for config $configId: invalid $field '$address'")
         throw IllegalArgumentException("Invalid $field address: $address")
+    }
+
+    /**
+     * Trims the sender name of a request and checks it before anything is sent or queued.
+     *
+     * The log line names the config and the reason, never the name: in some clients the
+     * name is a person's.
+     *
+     * @return the trimmed name, or null when the request has none.
+     * @throws IllegalArgumentException when the name is refused by [senderNameRefusal].
+     */
+    private fun validateSenderName(configId: String, senderName: String?): String? {
+        val name = senderName?.trim() ?: return null
+        val refusal = senderNameRefusal(name) ?: return name
+
+        logger.warn("Rejected mail for config $configId: invalid senderName, $refusal")
+        throw IllegalArgumentException(INVALID_SENDER_NAME)
     }
 
     override suspend fun sendContactForm(form: ContactForm): ContactFormResult {
@@ -233,6 +252,7 @@ class MailLogicImpl(
 
     override suspend fun sendMail(mailInput: MailInput, attachments: List<Attachment>): SendOperationResult {
         validateAddress(mailInput.id, "replyTo", mailInput.replyTo)
+        val senderName = validateSenderName(mailInput.id, mailInput.senderName)
 
         val config = mailConfigHandler.get(mailInput.id)
 
@@ -244,7 +264,8 @@ class MailLogicImpl(
             subject = TemplateRenderer.renderPlainText(config.subjectTemplate, mailInput.attributes),
             content = TemplateRenderer.renderHtml(mailConfigHandler.getTemplate(config.id), mailInput.attributes),
             attachments = attachments,
-            replyTo = mailInput.replyTo
+            replyTo = mailInput.replyTo,
+            senderName = senderName,
         )
     }
 
@@ -262,6 +283,19 @@ class MailLogicImpl(
 
         require(invalidReplyTos.isEmpty()) {
             "Invalid replyTo addresses: ${invalidReplyTos.joinToString()}"
+        }
+
+        // Checked for every entry before any is sent, like replyTo, so one bad name cannot
+        // produce a partial send. Each entry keeps its own name; null keeps the config's.
+        val refusedSenderNames = batch.mapIndexedNotNull { index, mailInput ->
+            mailInput.senderName
+                ?.let { senderNameRefusal(it.trim()) }
+                ?.let { refusal -> "entry $index (config ${mailInput.id}): $refusal" }
+        }
+
+        if (refusedSenderNames.isNotEmpty()) {
+            logger.warn("Rejected batch of ${batch.size} mails, invalid senderName: ${refusedSenderNames.joinToString()}")
+            throw IllegalArgumentException(INVALID_SENDER_NAME)
         }
 
         val mailInputsByConfig = batch.groupBy { mailInput ->
@@ -295,7 +329,8 @@ class MailLogicImpl(
                             to = mailInput.email,
                             subject = TemplateRenderer.renderPlainText(mailConfig.subjectTemplate, mailInput.attributes),
                             content = TemplateRenderer.renderHtml(mailConfigHandler.getTemplate(mailInput.id), mailInput.attributes),
-                            replyTo = mailInput.replyTo
+                            replyTo = mailInput.replyTo,
+                            senderName = mailInput.senderName?.trim(),
                         )
                     },
                     maxRetries = 3,
@@ -322,6 +357,7 @@ class MailLogicImpl(
             "Recipient list exceeds the maximum of $BROADCAST_RECIPIENT_LIMIT"
         }
         validateAddress(configId, "replyTo", request.replyTo)
+        val senderName = validateSenderName(configId, request.senderName)
 
         val config = mailConfigHandler.get(configId)
         val mailer = config.getMailerOrCreate()
@@ -337,7 +373,8 @@ class MailLogicImpl(
                     subject = subject,
                     content = content,
                     attachments = attachments,
-                    replyTo = request.replyTo
+                    replyTo = request.replyTo,
+                    senderName = senderName,
                 )
             },
             maxRetries = 3,
